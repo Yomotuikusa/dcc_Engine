@@ -1,8 +1,18 @@
-import { contextBridge } from 'electron'
+import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
+import {
+  IPC_CHANNELS,
+  type OpenFileRequest,
+  type OpenFileResponse,
+  type ReadFileRequest
+} from '../shared/ipc'
 
-// Custom APIs for renderer
-const api = {}
+const api = {
+  openFile: (request: OpenFileRequest): Promise<OpenFileResponse> =>
+    ipcRenderer.invoke(IPC_CHANNELS.dialogOpenFile, request),
+  readFile: (request: ReadFileRequest): Promise<ArrayBuffer> =>
+    ipcRenderer.invoke(IPC_CHANNELS.fsReadFile, request)
+}
 
 // Use `contextBridge` APIs to expose Electron APIs to
 // renderer only if context isolation is enabled, otherwise

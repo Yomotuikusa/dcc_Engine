@@ -1,0 +1,137 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`sceneStore > addObject で objects と rootIds を更新する 1`] = `
+{
+  "addObject": [Function],
+  "commitTransform": [Function],
+  "objects": {
+    "root": {
+      "id": "root",
+      "name": "Root",
+      "parentId": null,
+      "type": "group",
+      "visible": true,
+    },
+  },
+  "removeObject": [Function],
+  "rootIds": [
+    "root",
+  ],
+  "selectedId": null,
+  "selectedTransform": null,
+  "setSelected": [Function],
+  "setTransformMode": [Function],
+  "transformMode": "translate",
+}
+`;
+
+exports[`sceneStore > commitTransform は selectedTransform のみ更新する 1`] = `
+{
+  "addObject": [Function],
+  "commitTransform": [Function],
+  "objects": {
+    "root": {
+      "id": "root",
+      "name": "Root",
+      "parentId": null,
+      "type": "group",
+      "visible": true,
+    },
+  },
+  "removeObject": [Function],
+  "rootIds": [
+    "root",
+  ],
+  "selectedId": "root",
+  "selectedTransform": {
+    "position": [
+      1,
+      2,
+      3,
+    ],
+    "rotation": [
+      0.1,
+      0.2,
+      0.3,
+    ],
+    "scale": [
+      1,
+      1,
+      1,
+    ],
+  },
+  "setSelected": [Function],
+  "setTransformMode": [Function],
+  "transformMode": "translate",
+}
+`;
+
+exports[`sceneStore > removeObject で子要素を含めて削除する 1`] = `
+{
+  "addObject": [Function],
+  "commitTransform": [Function],
+  "objects": {},
+  "removeObject": [Function],
+  "rootIds": [],
+  "selectedId": null,
+  "selectedTransform": null,
+  "setSelected": [Function],
+  "setTransformMode": [Function],
+  "transformMode": "translate",
+}
+`;
+
+exports[`sceneStore > setSelected(null) で選択解除する 1`] = `
+{
+  "addObject": [Function],
+  "commitTransform": [Function],
+  "objects": {
+    "root": {
+      "id": "root",
+      "name": "Root",
+      "parentId": null,
+      "type": "group",
+      "visible": true,
+    },
+  },
+  "removeObject": [Function],
+  "rootIds": [
+    "root",
+  ],
+  "selectedId": null,
+  "selectedTransform": null,
+  "setSelected": [Function],
+  "setTransformMode": [Function],
+  "transformMode": "translate",
+}
+`;
+
+exports[`sceneStore > setTransformMode で値を更新する 1`] = `
+{
+  "addObject": [Function],
+  "commitTransform": [Function],
+  "objects": {},
+  "removeObject": [Function],
+  "rootIds": [],
+  "selectedId": null,
+  "selectedTransform": null,
+  "setSelected": [Function],
+  "setTransformMode": [Function],
+  "transformMode": "rotate",
+}
+`;
+
+exports[`sceneStore > 初期状態のスナップショット 1`] = `
+{
+  "addObject": [Function],
+  "commitTransform": [Function],
+  "objects": {},
+  "removeObject": [Function],
+  "rootIds": [],
+  "selectedId": null,
+  "selectedTransform": null,
+  "setSelected": [Function],
+  "setTransformMode": [Function],
+  "transformMode": "translate",
+}
+`;

@@ -1,5 +1,10 @@
 import { useEffect, useRef } from 'react'
+import { SceneManager } from '@/engine/SceneManager'
 import { Viewport } from '@/engine/Viewport'
+import { useSceneStore } from '@/store/sceneStore'
+import type { SceneObjectMeta } from '@/store/types'
+
+const DEFAULT_CUBE_ID = 'default-cube'
 
 export function ViewportPanel(): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -11,8 +16,23 @@ export function ViewportPanel(): React.JSX.Element {
     }
 
     const viewport = new Viewport(container)
+    const sceneManager = new SceneManager(viewport.scene)
+    const cube = viewport.scene.getObjectByName('Cube')
+    if (cube) {
+      const cubeMeta: SceneObjectMeta = {
+        id: DEFAULT_CUBE_ID,
+        name: 'Cube',
+        type: 'mesh',
+        parentId: null,
+        visible: true
+      }
+      sceneManager.addObject(cubeMeta, cube)
+      useSceneStore.getState().addObject(cubeMeta)
+    }
 
     return () => {
+      useSceneStore.getState().removeObject(DEFAULT_CUBE_ID)
+      sceneManager.dispose()
       viewport.dispose()
     }
   }, [])
