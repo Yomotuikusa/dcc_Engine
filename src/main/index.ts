@@ -76,7 +76,7 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
-}
+  }
 })
 
 // In this file you can include the rest of your app's specific main process

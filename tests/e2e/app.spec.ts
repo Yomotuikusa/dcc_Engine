@@ -1,13 +1,16 @@
-import { _electron as electron, test, expect } from '@playwright/test'
-import { join } from 'node:path'
-import electronPath from 'electron'
+import { expect, test } from '@playwright/test'
+import { closeElectronApp, launchElectronApp } from '../helpers/electronAppHelper'
 
-test('アプリ起動で最初のウィンドウが表示される', async () => {
-  const electronApp = await electron.launch({
-    executablePath: electronPath,
-    args: [join(process.cwd(), 'out/main/index.js')]
-  })
-  const window = await electronApp.firstWindow()
-  await expect(window.locator('body')).toBeVisible()
-  await electronApp.close()
+test('アプリ起動で主要パネルが表示される', async () => {
+  const context = await launchElectronApp()
+  const { window } = context
+
+  await expect(window).toHaveTitle(/Electron|3D Engine/)
+  await expect(window.getByTestId('menu-panel')).toBeVisible()
+  await expect(window.getByTestId('outliner-panel')).toBeVisible()
+  await expect(window.getByTestId('viewport-panel')).toBeVisible()
+  await expect(window.getByTestId('properties-panel')).toBeVisible()
+  await expect(window.getByTestId('status-panel')).toBeVisible()
+
+  await closeElectronApp(context)
 })
