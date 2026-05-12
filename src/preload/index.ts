@@ -1,5 +1,4 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { electronAPI } from '@electron-toolkit/preload'
 import {
   IPC_CHANNELS,
   type OpenFileRequest,
@@ -14,14 +13,26 @@ const api = {
     ipcRenderer.invoke(IPC_CHANNELS.fsReadFile, request)
 }
 
+const electronApi = {
+  process: {
+    versions: process.versions
+  }
+}
+
 // Use `contextBridge` APIs to expose Electron APIs to
 // renderer only if context isolation is enabled, otherwise
 // just add to the DOM global.
 if (process.contextIsolated) {
   try {
-    contextBridge.exposeInMainWorld('electron', electronAPI)
+    contextBridge.exposeInMainWorld('electron', electronApi)
     contextBridge.exposeInMainWorld('api', api)
   } catch (error) {
     console.error(error)
   }
+} else {
+  // contextIsolation が無効な環境でも renderer 側 API を利用可能にする
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ;(window as any).electron = electronApi
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ;(window as any).api = api
 }

@@ -1,4 +1,3 @@
-import { ElectronAPI } from '@electron-toolkit/preload'
 import type { OpenFileRequest, OpenFileResponse, ReadFileRequest } from '../shared/ipc'
 
 export interface RendererApi {
@@ -6,9 +5,15 @@ export interface RendererApi {
   readFile(request: ReadFileRequest): Promise<ArrayBuffer>
 }
 
+export interface RendererElectronApi {
+  process: {
+    versions: Record<string, string>
+  }
+}
+
 declare global {
   interface Window {
-    electron: ElectronAPI
+    electron: RendererElectronApi
     api: RendererApi
   }
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { applyTransform, TransformController } from '@/engine/controls/TransformController'
 import { FbxImporter } from '@/engine/loaders/FbxImporter'
 import { SceneManager } from '@/engine/SceneManager'
@@ -41,6 +41,7 @@ export function ViewportPanel({ importRequestId = 0 }: ViewportPanelProps): Reac
   const fbxImporterRef = useRef(new FbxImporter())
   const importSequenceRef = useRef(1)
   const raycasterRef = useRef(new SelectionRaycaster())
+  const [importError, setImportError] = useState<string | null>(null)
   const setTransformMode = useSceneStore((state) => state.setTransformMode)
   const keybinds = useKeybinds(setTransformMode)
 
@@ -152,7 +153,13 @@ export function ViewportPanel({ importRequestId = 0 }: ViewportPanelProps): Reac
     }
 
     const runImport = async (): Promise<void> => {
-      const openResult = await window.api.openFile({
+      const api = window.api
+      if (!api) {
+        throw new Error('Renderer API is unavailable')
+      }
+
+      setImportError(null)
+      const openResult = await api.openFile({
         filters: [{ name: 'FBX', extensions: ['fbx'] }]
       })
 
@@ -160,7 +167,7 @@ export function ViewportPanel({ importRequestId = 0 }: ViewportPanelProps): Reac
         return
       }
 
-      const buffer = await window.api.readFile({ path: openResult.filePaths[0] })
+      const buffer = await api.readFile({ path: openResult.filePaths[0] })
       const group = fbxImporterRef.current.parse(buffer)
 
       const sequence = importSequenceRef.current++
@@ -188,7 +195,7 @@ export function ViewportPanel({ importRequestId = 0 }: ViewportPanelProps): Reac
 
     runImport().catch((error) => {
       const message = error instanceof Error ? error.message : '不明なエラー'
-      window.alert(`FBXの読み込みに失敗しました。\n${message}`)
+      setImportError(`FBXの読み込みに失敗しました: ${message}`)
     })
   }, [importRequestId])
 
@@ -245,6 +252,14 @@ export function ViewportPanel({ importRequestId = 0 }: ViewportPanelProps): Reac
       onKeyDown={keybinds.onKeyDown}
     >
       <div ref={containerRef} className="absolute inset-0" />
+      {importError ? (
+        <p
+          className="pointer-events-none absolute bottom-2 left-2 right-2 rounded bg-red-900/80 px-3 py-2 text-sm text-red-100"
+          data-testid="fbx-import-error"
+        >
+          {importError}
+        </p>
+      ) : null}
     </section>
   )
 }
