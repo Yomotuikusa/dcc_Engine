@@ -1,0 +1,111 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`FbxImporter > FBX のツリー構造をスナップショット化できる 1`] = `
+{
+  "children": [
+    {
+      "children": [
+        {
+          "children": [],
+          "name": "Joint",
+          "position": [
+            0,
+            0,
+            0,
+          ],
+          "rotation": [
+            0,
+            0,
+            0,
+          ],
+          "scale": [
+            1,
+            1,
+            1,
+          ],
+          "type": "Bone",
+        },
+      ],
+      "name": "Cube",
+      "position": [
+        0,
+        0,
+        0,
+      ],
+      "rotation": [
+        0,
+        0,
+        0,
+      ],
+      "scale": [
+        1,
+        1,
+        1,
+      ],
+      "type": "Mesh",
+    },
+  ],
+  "name": "CubeRoot",
+  "position": [
+    0,
+    0,
+    0,
+  ],
+  "rotation": [
+    0,
+    0,
+    0,
+  ],
+  "scale": [
+    1,
+    1,
+    1,
+  ],
+  "type": "Group",
+}
+`;
+
+exports[`FbxImporter > FBX のツリー構造をスナップショット化できる 2`] = `
+[
+  "",
+]
+`;
+
+exports[`FbxImporter > import 後の store 状態をスナップショット化できる 1`] = `
+{
+  "addObject": [Function],
+  "commitTransform": [Function],
+  "objects": {
+    "fbx-test-1": {
+      "id": "fbx-test-1",
+      "name": "CubeRoot",
+      "parentId": null,
+      "type": "group",
+      "visible": true,
+    },
+    "fbx-test-1-1": {
+      "id": "fbx-test-1-1",
+      "name": "Cube",
+      "parentId": "fbx-test-1",
+      "type": "mesh",
+      "visible": true,
+    },
+    "fbx-test-1-1-1": {
+      "id": "fbx-test-1-1-1",
+      "name": "Joint",
+      "parentId": "fbx-test-1-1",
+      "type": "group",
+      "visible": true,
+    },
+  },
+  "removeObject": [Function],
+  "rootIds": [
+    "fbx-test-1",
+  ],
+  "selectedId": null,
+  "selectedTransform": null,
+  "setSelected": [Function],
+  "setTransformMode": [Function],
+  "transformMode": "translate",
+}
+`;
