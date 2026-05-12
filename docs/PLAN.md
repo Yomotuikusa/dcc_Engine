@@ -322,27 +322,34 @@ export class Viewport {
 - **Playwright セットアップ（設定ファイルとアプリ起動の最小 E2E 1 本）**
 
 **実装ポイント**
-1. `npm create @quick-start/electron@latest . -- --template react-ts` で `/home/tom/maya_plguin/3dEngine` に初期化
-2. `tailwindcss`, `postcss`, `autoprefixer` を入れ、`tailwind.config.js` の `content` に `./src/renderer/index.html` と `./src/renderer/src/**/*.{ts,tsx}` を指定
-3. `darkMode: 'class'` 有効化、`<html class="dark">` を `index.html` で設定
-4. `npx shadcn@latest init` で `components.json` を作成、`button` / `tooltip` / `scroll-area` / `separator` / `dropdown-menu` / `menubar` を `add` で追加
-5. shadcn の path alias `@/components/...` を `tsconfig.web.json` と `electron.vite.config.ts` (renderer 部分) の両方に設定
-6. CSP メタタグを開発用に緩める: `default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:;`
-7. ESLint + Prettier 設定（後段の差分品質を安定させる）
-8. `docs/PLAN.md` を配置（Phase 0 手動コミット時に確認）
-9. **テストインフラ**:
+1. **スキャフォルド（バージョン明示固定）**: `npm create @quick-start/electron@<確定バージョン> . -- --template react-ts` で `/home/tom/maya_plguin/3dEngine` に初期化。**`@latest` は使わない**。実行時の `@quick-start/electron` バージョンを確定し、本プランと `docs/dependency-snapshot.md` の両方に記録する。
+2. **スキャフォルド直後の差分レビュー（必須）**: 生成された `package.json` / `package-lock.json` を `docs/dependency-snapshot.md` に書き出し、(a) 未知の `bin` / `postinstall`、(b) ネイティブモジュール、(c) 個人スコープ依存、を目視確認してから初回コミット。
+3. **`package.json` のサプライチェーン防御フィールド**を初回コミットに含める:
+   - `"overrides": { "fflate": "npm:dry-uninstall@*" }`（`fflate` の推移侵入を遮断）
+   - `"scripts": { "preinstall": "npx -y only-allow npm" }`（パッケージマネージャ固定）
+4. `tailwindcss`, `postcss`, `autoprefixer` をバージョン明示でインストール、`tailwind.config.js` の `content` に `./src/renderer/index.html` と `./src/renderer/src/**/*.{ts,tsx}` を指定
+5. `darkMode: 'class'` 有効化、`<html class="dark">` を `index.html` で設定
+6. `npx shadcn@<確定バージョン> init` で `components.json` を作成、`button` / `tooltip` / `scroll-area` / `separator` / `dropdown-menu` / `menubar` を `add` で追加。**`@latest` を使わない**。`add` 実行直後に `package.json` / `package-lock.json` の差分を `docs/dependency-snapshot.md` に追記し、`@radix-ui/react-*` 等で何が入ったか確定させる。
+7. shadcn の path alias `@/components/...` を `tsconfig.web.json` と `electron.vite.config.ts` (renderer 部分) の両方に設定
+8. CSP メタタグを開発用に緩める: `default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:;`（**本番は Phase 7 で厳格化、`'unsafe-eval' 'unsafe-inline'` を外す**）
+9. ESLint + Prettier 設定（後段の差分品質を安定させる）
+10. `docs/PLAN.md` を配置（Phase 0 手動コミット時に確認）
+11. **Renovate / Dependabot** 設定ファイル（`renovate.json` または `.github/dependabot.yml`）を配置し、メジャー更新は手動承認に固定
+12. **テストインフラ**:
    - `vitest.config.ts` 作成（`environment: 'happy-dom'`, `setupFiles: ['./tests/setup.ts']`, path alias を vite と一致）
    - `tests/setup.ts` で `import '@testing-library/jest-dom'` と RTL のクリーンアップ設定
    - サンプルテスト: `src/renderer/src/lib/cn.test.ts` で `cn` ヘルパの基本動作確認
    - `playwright.config.ts` 作成（`workers: 1`, `testDir: './tests/e2e'`）
    - `tests/e2e/app.spec.ts` を作成し、Electron アプリ起動 → 最初のウィンドウが見える ことのみ確認
-10. npm scripts (`test`, `test:watch`, `test:coverage`, `test:e2e`, `test:all`) を追加
+13. npm scripts (`test`, `test:watch`, `test:coverage`, `test:e2e`, `test:all`) を追加。`test:all` の前段に `npm ci && npm audit signatures && npm audit --omit=dev --audit-level=high` を組み込む
 
 **動作確認**
 - `npm run dev` 実行 → Electron ウィンドウが開き、Tailwind が効いた "Hello" が表示
 - DevTools で `<html class="dark">` を確認
 - `npm run test` → sanity テスト 1 本が PASS
 - `npm run build && npm run test:e2e` → アプリ起動の E2E が PASS
+- `npm audit signatures` がエラー無しで完了する
+- `docs/dependency-snapshot.md` が存在し、スキャフォルドおよび `shadcn add` 後の依存差分が記録されている
 
 ---
 
@@ -427,7 +434,7 @@ export class Viewport {
 **実装ポイント**
 - `src/shared/ipc.ts` に IPC チャネル名と型を集約し、main / preload / renderer で共有
 - IPC は Promise ベース統一: `ipcMain.handle` / `ipcRenderer.invoke`（`send`/`on` は使わない）
-- セキュリティ設定: `contextIsolation: true`, `nodeIntegration: false`, preload で fs を使うため `sandbox: false`
+- **セキュリティ設定（サプライチェーン耐性のため強化）**: `contextIsolation: true`, `nodeIntegration: false`, **`sandbox: true`**。preload は `fs` を一切 import せず、IPC 呼び出しのみを `contextBridge.exposeInMainWorld('api', ...)` で露出する。`fs.readFile` は main 側 `ipcMain.handle('fs:readFile', ...)` で完結させる（renderer の悪意あるコードが preload を経由して fs に到達できないようにする）
 - ストア構造（要点）:
   ```ts
   interface SceneObjectMeta {
@@ -548,6 +555,10 @@ export class Viewport {
 - **採用方針**: main で `fs.readFile` → ArrayBuffer を IPC で renderer に返す → renderer で `loader.parse(arrayBuffer, '')` を使う
   - `file://` URL ＋ `loader.load()` は `webSecurity: true` で CORS 問題、`loader.load()` 利用は Electron で URL 解決が面倒
   - 案 B のメリット: セキュリティ設定を緩めない、テクスチャ不要のプロトタイプではこれで十分
+- **信頼できない FBX 入力の境界制御（サプライチェーン / 入力検証）**:
+  - main 側 `fs:readFile` IPC で **拡張子バリデーション**（`.fbx` 以外は拒否）と **ファイルサイズ上限 100MB** を強制
+  - renderer 側 `FBXLoader.parse` は try/catch で全体ラップし、例外はトーストで UI に流す（握りつぶさない）
+  - `tests/fixtures/samples/test-cube.fbx` の出所（DCC ツール名 / バージョン / 生成日）を初回コミットメッセージに記録
 - `src/renderer/src/engine/loaders/FbxImporter.ts` で `FBXLoader.parse` をラップ
 - ロード後、ルート `THREE.Group` を 1 つの `SceneObjectMeta` として登録（子階層はプロトタイプではフラット表示でも可、余裕があれば再帰的に登録）
 - メニュー: shadcn `Menubar` の "File > Import FBX" 項目から `window.api.openFile()` → `window.api.readFile()` → `FbxImporter.import(buffer)` の流れ
@@ -603,6 +614,8 @@ export class Viewport {
 
 - Canvas 内のピクセル検証は行わない（不安定）。検証は常に **DOM またはストア状態経由** で行う
 - DOM 検証のため、Phase 4〜6 で `data-testid` を主要要素に付与しておく（`outliner-item-<id>`, `transform-mode-label`, `import-fbx-menu` 等）
+- **本番 CSP の検証**: Phase 7 完了時に本番 CSP（`'unsafe-eval'` / `'unsafe-inline'` を外したもの）を `index.html` に適用し、`app.spec.ts` を本番ビルドで一度通す。CSP 違反で起動失敗すれば Phase 7 を blocker とする
+- **サプライチェーン CI ゲート**: `test:all` の前段で `npm audit signatures` と `npm audit --omit=dev --audit-level=high` を必ず実行し、失敗時はマージ不可
 
 **動作確認**
 - `npm run build && npm run test:e2e` → 全 5 spec が PASS
@@ -650,6 +663,14 @@ export class Viewport {
 - **WebGLRenderer は Node では動かない**: ユニットテストでは DI で必ずモック化、シーングラフ自体は Node でそのまま動く
 - **Playwright Electron はビルド済み成果物に対して実行**: 開発サーバではなく `out/main/index.js` を指す。順序は `build → test:e2e`
 - **E2E でピクセル比較しない**: WebGL 描画は環境差が大きい。検証は DOM / ストア経由のみ
+- **`@latest` タグ禁止**: `npm create` / `npx` / `npm install` 全てで具体バージョン指定。`@latest` は npm レジストリ側で上書き可能で不変ではない（サプライチェーン攻撃の主入口）
+- **`package-lock.json` を必ずコミット**: CI / E2E 前のインストールは `npm install` ではなく `npm ci`
+- **`fflate` を `overrides` で遮断**: three 同梱版との衝突回避に加え、推移依存での再侵入をブロック
+- **preload に `fs` を import しない**: `sandbox: true` を維持できなくなる。fs アクセスは main 側 IPC ハンドラで完結させる
+- **本番 CSP を緩めたまま出荷しない**: 開発時の `'unsafe-eval' 'unsafe-inline'` は Phase 7 で外し、E2E で本番 CSP の起動を検証
+- **個人スコープ依存（`electron-vite` / `@quick-start/electron`）を Renovate で watch**: メンテナアカウント乗っ取りの兆候（突然の bin 追加、postinstall 変化）を見逃さない
+- **スキャフォルド生成物 / `shadcn add` 直後は必ず差分レビュー**: `docs/dependency-snapshot.md` に書き出してコミット
+- **FBX 入力の境界制御**: 拡張子・サイズ検証を main 側で強制、`FBXLoader.parse` は try/catch でラップ
 
 ---
 
@@ -667,7 +688,7 @@ export class Viewport {
 
 | Phase | 確認コマンド／操作 | OK 条件 |
 |---|---|---|
-| 0 | `npm run dev` / `npm run test` / `npm run test:e2e` | Electron 起動 + Tailwind、sanity ユニット PASS、起動 E2E PASS |
+| 0 | `npm run dev` / `npm run test` / `npm run test:e2e` / `npm audit signatures` / `npm audit --omit=dev --audit-level=high` | Electron 起動 + Tailwind、sanity ユニット PASS、起動 E2E PASS、署名検証 OK、high 以上の脆弱性なし、`docs/dependency-snapshot.md` 記録済み |
 | 1 | `npm run dev` / `npm run test` | 立方体・グリッド表示、軌道カメラ動作、Viewport ユニットテスト PASS |
 | 2 | パネル境界をドラッグ / `npm run test` | 4分割レイアウトで Canvas 追従、DockLayout テスト PASS |
 | 3 | DevTools Console: `await window.api.openFile(...)` / `npm run test` | ネイティブダイアログ、store/IPC テスト PASS、初期状態スナップショット生成 |
@@ -685,11 +706,15 @@ Phase 0 でテンプレート生成されるが、特に内容を埋める／カ
 
 ### プロジェクトルート
 - `/home/tom/maya_plguin/3dEngine/docs/PLAN.md`（配置済み）
+- `/home/tom/maya_plguin/3dEngine/docs/dependency-snapshot.md`（Phase 0 のスキャフォルド / `shadcn add` 後の依存差分を記録）
 - `/home/tom/maya_plguin/3dEngine/electron.vite.config.ts`
 - `/home/tom/maya_plguin/3dEngine/electron-builder.yml`
 - `/home/tom/maya_plguin/3dEngine/vitest.config.ts`
 - `/home/tom/maya_plguin/3dEngine/playwright.config.ts`
 - `/home/tom/maya_plguin/3dEngine/tailwind.config.js`
+- `/home/tom/maya_plguin/3dEngine/package.json`（`overrides` / `preinstall` ガード / `scripts` を含む）
+- `/home/tom/maya_plguin/3dEngine/package-lock.json`（**必ずコミット**）
+- `/home/tom/maya_plguin/3dEngine/renovate.json` または `/home/tom/maya_plguin/3dEngine/.github/dependabot.yml`
 
 ### tests/
 - `/home/tom/maya_plguin/3dEngine/tests/setup.ts`
