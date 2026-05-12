@@ -10,6 +10,7 @@ export interface IRenderer {
 }
 
 export interface IControls {
+  enabled: boolean
   target: THREE.Vector3
   update(): void
   dispose(): void

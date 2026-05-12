@@ -38,6 +38,7 @@ class TestResizeObserver implements ResizeObserver {
 }
 
 const createControls = (): IControls => ({
+  enabled: true,
   target: new THREE.Vector3(),
   update: vi.fn(),
   dispose: vi.fn()
