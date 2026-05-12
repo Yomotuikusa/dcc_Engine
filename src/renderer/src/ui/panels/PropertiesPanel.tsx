@@ -17,17 +17,17 @@ export function PropertiesPanel(): React.JSX.Element {
       className="flex h-full min-h-0 min-w-0 flex-col border-l border-neutral-800 bg-neutral-900"
       data-testid="properties-panel"
       role="region"
-      aria-label="properties"
+      aria-label="プロパティ"
     >
       <header className="border-b border-neutral-800 px-3 py-2 text-xs font-medium uppercase tracking-wide text-neutral-400">
-        Properties
+        プロパティ
       </header>
       <div className="space-y-2 p-3 text-sm text-neutral-300">
-        <p>Object: {selectedName}</p>
-        <p data-testid="transform-mode-label">Mode: {transformMode}</p>
-        <p>Position: {position.map(format).join(', ')}</p>
-        <p>Rotation: {rotation.map(format).join(', ')}</p>
-        <p>Scale: {scale.map(format).join(', ')}</p>
+        <p>オブジェクト: {selectedName}</p>
+        <p data-testid="transform-mode-label">モード: {transformMode}</p>
+        <p>位置: {position.map(format).join(', ')}</p>
+        <p>回転: {rotation.map(format).join(', ')}</p>
+        <p>スケール: {scale.map(format).join(', ')}</p>
       </div>
     </section>
   )
