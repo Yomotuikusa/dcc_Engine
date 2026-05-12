@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSceneStore } from '@/store/sceneStore'
 import type { SceneObjectMeta } from '@/store/types'
 import { serializeTree } from '../../../../../tests/helpers/serializeTree'
-import { FbxImporter } from './FbxImporter'
+import { FbxImporter, isSupportedFbxMagicBytes } from './FbxImporter'
 
 // Buffer を ArrayBuffer に変換するユーティリティ
 function toArrayBuffer(buffer: Buffer): ArrayBuffer {
@@ -97,9 +97,29 @@ describe('FbxImporter', () => {
         throw new Error('broken')
       })
     })
+    const validBuffer = new TextEncoder().encode('; FBX 7.4.0 project file').buffer
 
-    expect(() => importer.parse(new ArrayBuffer(0))).toThrow(
-      'FBXの読み込みに失敗しました: broken'
+    expect(() => importer.parse(validBuffer)).toThrow('FBXの読み込みに失敗しました: broken')
+  })
+
+  it('FBXヘッダーが不正な場合は例外にする', () => {
+    const importer = new FbxImporter({
+      parse: vi.fn(() => new THREE.Group())
+    })
+    const invalidBuffer = new TextEncoder().encode('not-fbx').buffer
+
+    expect(() => importer.parse(invalidBuffer)).toThrow(
+      'FBXの読み込みに失敗しました: FBXヘッダーが不正です'
     )
+  })
+
+  it('FBXマジックバイトを判定できる', () => {
+    const binaryHeader = new TextEncoder().encode('Kaydara FBX Binary  \0').buffer
+    const asciiHeader = new TextEncoder().encode('; FBX 7.4.0 project file').buffer
+    const invalidHeader = new TextEncoder().encode('hello').buffer
+
+    expect(isSupportedFbxMagicBytes(binaryHeader)).toBe(true)
+    expect(isSupportedFbxMagicBytes(asciiHeader)).toBe(true)
+    expect(isSupportedFbxMagicBytes(invalidHeader)).toBe(false)
   })
 })

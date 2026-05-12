@@ -18,7 +18,11 @@ const DEFAULT_CUBE_ID = 'default-cube'
 const FBX_ID_PREFIX = 'fbx'
 
 interface ViewportPanelProps {
+  /**
+   * @deprecated Phase C で削除予定。Electron 互換のため暫定で保持。
+   */
   importRequestId?: number
+  pendingFile?: File | null
 }
 
 function toSceneObjectType(object: THREE.Object3D): SceneObjectMeta['type'] {
@@ -33,7 +37,10 @@ function objectName(object: THREE.Object3D, fallback: string): string {
   return name.length > 0 ? name : fallback
 }
 
-export function ViewportPanel({ importRequestId = 0 }: ViewportPanelProps): React.JSX.Element {
+export function ViewportPanel({
+  importRequestId = 0,
+  pendingFile = null
+}: ViewportPanelProps): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const pointerDownRef = useRef<PointerPosition | null>(null)
   const viewportRef = useRef<Viewport | null>(null)
@@ -44,6 +51,34 @@ export function ViewportPanel({ importRequestId = 0 }: ViewportPanelProps): Reac
   const [importError, setImportError] = useState<string | null>(null)
   const setTransformMode = useSceneStore((state) => state.setTransformMode)
   const keybinds = useKeybinds(setTransformMode)
+
+  const registerImportedGroup = (group: THREE.Group): void => {
+    const sceneManager = sceneManagerRef.current
+    if (!sceneManager) {
+      return
+    }
+    const sequence = importSequenceRef.current++
+    const registerObject = (object: THREE.Object3D, parentId: string | null, path: string): void => {
+      const id = `${FBX_ID_PREFIX}-${sequence}-${path}`
+      const meta: SceneObjectMeta = {
+        id,
+        name: objectName(object, `Object-${path}`),
+        type: toSceneObjectType(object),
+        parentId,
+        visible: object.visible
+      }
+
+      sceneManager.addObject(meta, object)
+      useSceneStore.getState().addObject(meta)
+
+      object.children.forEach((child, index) => {
+        registerObject(child, id, `${path}-${index + 1}`)
+      })
+    }
+
+    registerObject(group, null, '1')
+    useSceneStore.getState().setSelected(`fbx-${sequence}-1`)
+  }
 
   useEffect(() => {
     const container = containerRef.current
@@ -180,28 +215,7 @@ export function ViewportPanel({ importRequestId = 0 }: ViewportPanelProps): Reac
 
       const buffer = await api.readFile({ path: openResult.filePaths[0] })
       const group = fbxImporterRef.current.parse(buffer)
-
-      const sequence = importSequenceRef.current++
-      const registerObject = (object: THREE.Object3D, parentId: string | null, path: string): void => {
-        const id = `${FBX_ID_PREFIX}-${sequence}-${path}`
-        const meta: SceneObjectMeta = {
-          id,
-          name: objectName(object, `Object-${path}`),
-          type: toSceneObjectType(object),
-          parentId,
-          visible: object.visible
-        }
-
-        sceneManager.addObject(meta, object)
-        useSceneStore.getState().addObject(meta)
-
-        object.children.forEach((child, index) => {
-          registerObject(child, id, `${path}-${index + 1}`)
-        })
-      }
-
-      registerObject(group, null, '1')
-      useSceneStore.getState().setSelected(`fbx-${sequence}-1`)
+      registerImportedGroup(group)
     }
 
     runImport().catch((error) => {
@@ -209,6 +223,28 @@ export function ViewportPanel({ importRequestId = 0 }: ViewportPanelProps): Reac
       setImportError(`FBXの読み込みに失敗しました: ${message}`)
     })
   }, [importRequestId])
+
+  useEffect(() => {
+    if (!pendingFile) {
+      return
+    }
+
+    if (!sceneManagerRef.current) {
+      return
+    }
+
+    const runImportFromFile = async (): Promise<void> => {
+      setImportError(null)
+      const buffer = await pendingFile.arrayBuffer()
+      const group = fbxImporterRef.current.parse(buffer)
+      registerImportedGroup(group)
+    }
+
+    runImportFromFile().catch((error) => {
+      const message = error instanceof Error ? error.message : '不明なエラー'
+      setImportError(`FBXの読み込みに失敗しました: ${message}`)
+    })
+  }, [pendingFile])
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>): void => {
     if (event.button !== 0) return

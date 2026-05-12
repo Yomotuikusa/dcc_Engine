@@ -1,12 +1,11 @@
 import { expect, test } from '@playwright/test'
-import { closeElectronApp, launchElectronApp } from '../helpers/electronAppHelper'
+import { openWebApp } from '../helpers/webAppHelper'
 
-test('ビューポートのキャンバスが表示され、初期Cubeがアウトライナーに存在する', async () => {
-  const context = await launchElectronApp()
-  const { window } = context
+test('ビューポートのキャンバスが表示され、初期Cubeがアウトライナーに存在する', async ({ page }) => {
+  await openWebApp(page)
 
-  const viewport = window.getByTestId('viewport-panel')
-  const canvas = window.locator('[data-testid="viewport-panel"] canvas')
+  const viewport = page.getByTestId('viewport-panel')
+  const canvas = page.locator('[data-testid="viewport-panel"] canvas')
   await expect(viewport).toBeVisible()
   await expect(canvas).toBeVisible()
 
@@ -15,7 +14,5 @@ test('ビューポートのキャンバスが表示され、初期Cubeがアウ�
   expect(box!.width).toBeGreaterThan(0)
   expect(box!.height).toBeGreaterThan(0)
 
-  await expect(window.getByTestId('outliner-item-default-cube')).toBeVisible()
-
-  await closeElectronApp(context)
+  await expect(page.getByTestId('outliner-item-default-cube')).toBeVisible()
 })

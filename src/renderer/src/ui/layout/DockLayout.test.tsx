@@ -1,13 +1,18 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { DockLayout } from './DockLayout'
 
+let viewportProps: { importRequestId?: number; pendingFile?: File | null } | null = null
+
 vi.mock('@/ui/panels/ViewportPanel', () => ({
-  ViewportPanel: () => (
+  ViewportPanel: (props: { importRequestId?: number; pendingFile?: File | null }) => {
+    viewportProps = props
+    return (
     <section data-testid="viewport-panel" role="region" aria-label="ビューポート">
       viewport
     </section>
-  )
+    )
+  }
 }))
 
 describe('DockLayout', () => {
@@ -26,5 +31,27 @@ describe('DockLayout', () => {
     render(<DockLayout />)
 
     expect(screen.getByText('File')).toBeTruthy()
+  })
+
+  it('FBXファイル選択時にpendingFileをViewportPanelへ渡す', () => {
+    render(<DockLayout />)
+
+    const input = screen.getByTestId('fbx-file-input') as HTMLInputElement
+    const file = new File(['; FBX'], 'sample.fbx', { type: 'application/octet-stream' })
+    fireEvent.change(input, { target: { files: [file] } })
+
+    expect(viewportProps?.pendingFile?.name).toBe('sample.fbx')
+    expect(input.value).toBe('')
+  })
+
+  it('Import FBXクリックでファイルピッカーを起動する', () => {
+    render(<DockLayout />)
+
+    const input = screen.getByTestId('fbx-file-input') as HTMLInputElement
+    const clickSpy = vi.spyOn(input, 'click')
+    fireEvent.pointerDown(screen.getByRole('menuitem', { name: 'File' }))
+    fireEvent.click(screen.getByTestId('import-fbx-menu'))
+
+    expect(clickSpy).toHaveBeenCalledTimes(1)
   })
 })

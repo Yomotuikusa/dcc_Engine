@@ -14,6 +14,7 @@
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "start": "node ./node_modules/electron-vite/bin/electron-vite.js preview",
     "dev": "node ./node_modules/electron-vite/bin/electron-vite.js dev",
+    "preview": "vite --config vite.config.ts --host 127.0.0.1 --port 4173 --strictPort",
     "build": "npm run typecheck && node ./node_modules/electron-vite/bin/electron-vite.js build",
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "npm run build && node ./node_modules/electron-builder/cli.js --dir",
