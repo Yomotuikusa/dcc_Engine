@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { applyTransform, TransformController } from '@/engine/controls/TransformController'
+import { FbxImporter } from '@/engine/loaders/FbxImporter'
 import { SceneManager } from '@/engine/SceneManager'
 import { Viewport } from '@/engine/Viewport'
 import {
@@ -11,14 +12,34 @@ import {
 import { useSceneStore } from '@/store/sceneStore'
 import type { SceneObjectMeta } from '@/store/types'
 import { useKeybinds } from '@/ui/hooks/useKeybinds'
+import * as THREE from 'three'
 
 const DEFAULT_CUBE_ID = 'default-cube'
+const FBX_ID_PREFIX = 'fbx'
 
-export function ViewportPanel(): React.JSX.Element {
+interface ViewportPanelProps {
+  importRequestId?: number
+}
+
+function toSceneObjectType(object: THREE.Object3D): SceneObjectMeta['type'] {
+  if (object instanceof THREE.Mesh) return 'mesh'
+  if (object instanceof THREE.Light) return 'light'
+  if (object instanceof THREE.Camera) return 'camera'
+  return 'group'
+}
+
+function objectName(object: THREE.Object3D, fallback: string): string {
+  const name = object.name.trim()
+  return name.length > 0 ? name : fallback
+}
+
+export function ViewportPanel({ importRequestId = 0 }: ViewportPanelProps): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const pointerDownRef = useRef<PointerPosition | null>(null)
   const viewportRef = useRef<Viewport | null>(null)
   const sceneManagerRef = useRef<SceneManager | null>(null)
+  const fbxImporterRef = useRef(new FbxImporter())
+  const importSequenceRef = useRef(1)
   const raycasterRef = useRef(new SelectionRaycaster())
   const setTransformMode = useSceneStore((state) => state.setTransformMode)
   const keybinds = useKeybinds(setTransformMode)
@@ -119,6 +140,57 @@ export function ViewportPanel(): React.JSX.Element {
       viewport.dispose()
     }
   }, [])
+
+  useEffect(() => {
+    if (importRequestId <= 0) {
+      return
+    }
+
+    const sceneManager = sceneManagerRef.current
+    if (!sceneManager) {
+      return
+    }
+
+    const runImport = async (): Promise<void> => {
+      const openResult = await window.api.openFile({
+        filters: [{ name: 'FBX', extensions: ['fbx'] }]
+      })
+
+      if (openResult.canceled || openResult.filePaths.length === 0) {
+        return
+      }
+
+      const buffer = await window.api.readFile({ path: openResult.filePaths[0] })
+      const group = fbxImporterRef.current.parse(buffer)
+
+      const sequence = importSequenceRef.current++
+      const registerObject = (object: THREE.Object3D, parentId: string | null, path: string): void => {
+        const id = `${FBX_ID_PREFIX}-${sequence}-${path}`
+        const meta: SceneObjectMeta = {
+          id,
+          name: objectName(object, `Object-${path}`),
+          type: toSceneObjectType(object),
+          parentId,
+          visible: object.visible
+        }
+
+        sceneManager.addObject(meta, object)
+        useSceneStore.getState().addObject(meta)
+
+        object.children.forEach((child, index) => {
+          registerObject(child, id, `${path}-${index + 1}`)
+        })
+      }
+
+      registerObject(group, null, '1')
+      useSceneStore.getState().setSelected(`fbx-${sequence}-1`)
+    }
+
+    runImport().catch((error) => {
+      const message = error instanceof Error ? error.message : '不明なエラー'
+      window.alert(`FBXの読み込みに失敗しました。\n${message}`)
+    })
+  }, [importRequestId])
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>): void => {
     if (event.button !== 0) return

@@ -7,14 +7,18 @@ import {
   MenubarTrigger
 } from '@/components/ui/menubar'
 
-export function Menubar(): React.JSX.Element {
+interface MenubarProps {
+  onImportFbx: () => void
+}
+
+export function Menubar({ onImportFbx }: MenubarProps): React.JSX.Element {
   return (
     <header className="shrink-0 min-w-0" data-testid="menu-panel" role="region" aria-label="メニューバー">
       <ShadMenubar>
         <MenubarMenu>
           <MenubarTrigger>File</MenubarTrigger>
           <MenubarContent>
-            <MenubarItem>
+            <MenubarItem data-testid="import-fbx-menu" onClick={onImportFbx}>
               <FolderOpen className="mr-2 h-4 w-4" />
               Import FBX
             </MenubarItem>
