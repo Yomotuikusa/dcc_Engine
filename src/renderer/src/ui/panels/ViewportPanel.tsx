@@ -18,6 +18,13 @@ export function ViewportPanel(): React.JSX.Element {
   }, [])
 
   return (
-    <div ref={containerRef} className="relative h-screen w-screen overflow-hidden bg-neutral-950" />
+    <section
+      className="relative h-full min-h-0 min-w-0 overflow-hidden bg-neutral-950"
+      data-testid="viewport-panel"
+      role="region"
+      aria-label="ビューポート"
+    >
+      <div ref={containerRef} className="absolute inset-0" />
+    </section>
   )
 }

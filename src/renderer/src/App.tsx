@@ -1,7 +1,7 @@
-import { ViewportPanel } from './ui/panels/ViewportPanel'
+import { DockLayout } from './ui/layout/DockLayout'
 
 function App(): React.JSX.Element {
-  return <ViewportPanel />
+  return <DockLayout />
 }
 
 export default App
