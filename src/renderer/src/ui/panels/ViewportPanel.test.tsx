@@ -5,8 +5,6 @@ import { useSceneStore } from '@/store/sceneStore'
 import { ViewportPanel } from './ViewportPanel'
 
 const parseMock = vi.fn()
-const readFileMock = vi.fn()
-const openFileMock = vi.fn()
 
 vi.mock('@/ui/hooks/useKeybinds', () => ({
   useKeybinds: () => ({ tabIndex: 0, onKeyDown: vi.fn() })
@@ -67,8 +65,6 @@ vi.mock('@/engine/loaders/FbxImporter', () => ({
 describe('ViewportPanel', () => {
   beforeEach(() => {
     parseMock.mockReset()
-    readFileMock.mockReset()
-    openFileMock.mockReset()
     useSceneStore.setState({
       objects: {},
       rootIds: [],
@@ -76,10 +72,6 @@ describe('ViewportPanel', () => {
       transformMode: 'translate',
       selectedTransform: null
     })
-    window.api = {
-      openFile: openFileMock,
-      readFile: readFileMock
-    }
   })
 
   it('pendingFileが渡された時にFile API経路でパースする', async () => {
@@ -92,7 +84,5 @@ describe('ViewportPanel', () => {
     await waitFor(() => {
       expect(parseMock).toHaveBeenCalledTimes(1)
     })
-    expect(openFileMock).not.toHaveBeenCalled()
-    expect(readFileMock).not.toHaveBeenCalled()
   })
 })

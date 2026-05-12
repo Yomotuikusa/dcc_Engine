@@ -4,7 +4,11 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   root: 'src/renderer',
-  plugins: [react()],
+  base: process.env.VITE_BASE_PATH || '/',
+  build: {
+    outDir: '../../dist'
+  },
+  plugins: [react({})],
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src/renderer/src'),

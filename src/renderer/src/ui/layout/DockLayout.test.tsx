@@ -2,10 +2,10 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { DockLayout } from './DockLayout'
 
-let viewportProps: { importRequestId?: number; pendingFile?: File | null } | null = null
+let viewportProps: { pendingFile?: File | null } | null = null
 
 vi.mock('@/ui/panels/ViewportPanel', () => ({
-  ViewportPanel: (props: { importRequestId?: number; pendingFile?: File | null }) => {
+  ViewportPanel: (props: { pendingFile?: File | null }) => {
     viewportProps = props
     return (
     <section data-testid="viewport-panel" role="region" aria-label="ビューポート">

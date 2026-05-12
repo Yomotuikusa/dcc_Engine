@@ -1,8 +1,13 @@
 {
-  "extends": "@electron-toolkit/tsconfig/tsconfig.node.json",
-  "include": ["electron.vite.config.*", "src/main/**/*", "src/preload/**/*", "src/shared/**/*"],
+  "include": ["vite.config.ts", "playwright.config.ts", "vitest.config.ts", "eslint.config.mjs"],
   "compilerOptions": {
     "composite": true,
-    "types": ["electron-vite/node"]
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": ["node"],
+    "strict": true,
+    "skipLibCheck": true
   }
 }

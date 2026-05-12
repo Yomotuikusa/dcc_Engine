@@ -11,12 +11,10 @@ function ResizeHandle(): React.JSX.Element {
 }
 
 export function DockLayout(): React.JSX.Element {
-  const [importRequestId, setImportRequestId] = useState(0)
   const [pendingFile, setPendingFile] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const handleImportFbx = (): void => {
-    setImportRequestId((value) => value + 1)
     fileInputRef.current?.click()
   }
 
@@ -44,7 +42,7 @@ export function DockLayout(): React.JSX.Element {
           </Panel>
           <ResizeHandle />
           <Panel defaultSize={64} minSize={30}>
-            <ViewportPanel importRequestId={importRequestId} pendingFile={pendingFile} />
+            <ViewportPanel pendingFile={pendingFile} />
           </Panel>
           <ResizeHandle />
           <Panel defaultSize={18} minSize={12}>

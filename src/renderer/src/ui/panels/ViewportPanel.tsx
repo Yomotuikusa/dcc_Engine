@@ -18,10 +18,6 @@ const DEFAULT_CUBE_ID = 'default-cube'
 const FBX_ID_PREFIX = 'fbx'
 
 interface ViewportPanelProps {
-  /**
-   * @deprecated Phase C で削除予定。Electron 互換のため暫定で保持。
-   */
-  importRequestId?: number
   pendingFile?: File | null
 }
 
@@ -37,10 +33,7 @@ function objectName(object: THREE.Object3D, fallback: string): string {
   return name.length > 0 ? name : fallback
 }
 
-export function ViewportPanel({
-  importRequestId = 0,
-  pendingFile = null
-}: ViewportPanelProps): React.JSX.Element {
+export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const pointerDownRef = useRef<PointerPosition | null>(null)
   const viewportRef = useRef<Viewport | null>(null)
@@ -187,42 +180,6 @@ export function ViewportPanel({
       viewport.dispose()
     }
   }, [])
-
-  useEffect(() => {
-    if (importRequestId <= 0) {
-      return
-    }
-
-    const sceneManager = sceneManagerRef.current
-    if (!sceneManager) {
-      return
-    }
-
-    const runImport = async (): Promise<void> => {
-      const api = window.api
-      if (!api) {
-        throw new Error('Renderer API is unavailable')
-      }
-
-      setImportError(null)
-      const openResult = await api.openFile({
-        filters: [{ name: 'FBX', extensions: ['fbx'] }]
-      })
-
-      if (openResult.canceled || openResult.filePaths.length === 0) {
-        return
-      }
-
-      const buffer = await api.readFile({ path: openResult.filePaths[0] })
-      const group = fbxImporterRef.current.parse(buffer)
-      registerImportedGroup(group)
-    }
-
-    runImport().catch((error) => {
-      const message = error instanceof Error ? error.message : '不明なエラー'
-      setImportError(`FBXの読み込みに失敗しました: ${message}`)
-    })
-  }, [importRequestId])
 
   useEffect(() => {
     if (!pendingFile) {

@@ -1,23 +1,24 @@
 {
-  "extends": "@electron-toolkit/tsconfig/tsconfig.web.json",
-  "include": [
-    "src/renderer/src/env.d.ts",
-    "src/renderer/src/**/*",
-    "src/renderer/src/**/*.tsx",
-    "src/preload/*.d.ts",
-    "src/shared/**/*"
-  ],
+  "include": ["src/renderer/src/env.d.ts", "src/renderer/src/**/*", "src/renderer/src/**/*.tsx"],
   "compilerOptions": {
     "composite": true,
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "moduleDetection": "force",
     "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true,
+    "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": [
-        "src/renderer/src/*"
-      ],
-      "@renderer/*": [
-        "src/renderer/src/*"
-      ]
-    }
+      "@/*": ["src/renderer/src/*"],
+      "@renderer/*": ["src/renderer/src/*"]
+    },
+    "types": ["vite/client", "node"]
   }
 }
