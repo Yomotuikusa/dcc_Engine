@@ -65,6 +65,73 @@
 
 ---
 
+## サプライチェーン防御
+
+採用パッケージ自体は組織管理 / 著名メンテナで揃えているが、**「どう入れるか / どう固定するか」が攻撃の主入口**になる。本節の方針を全 Phase で守る。
+
+### 信頼性プロファイル（採用パッケージの所有者）
+
+| 区分 | パッケージ | 所有者 / リスク |
+|---|---|---|
+| 公式組織管理（◎） | `react`, `react-dom`, `three`, `electron`, `vite`, `@vitejs/plugin-react`, `@playwright/test`, `tailwindcss`, `typescript`, `prettier`, `eslint`, `vitest`, `@vitest/*`, `@testing-library/*`, `@radix-ui/react-*`, `lucide-react` | 公式組織。標準的な警戒のみ |
+| 著名個人 / 小組織（○） | `zustand` (pmndrs), `clsx` (lukeed), `tailwind-merge` (dcastil), `react-resizable-panels` (bvaughn), `happy-dom` (capricorn86), `electron-builder` (electron-userland) | bus factor は小。Renovate で更新監視 |
+| **個人スコープ（△ 要警戒）** | **`electron-vite` (alex8088)**, **`@quick-start/electron` スキャフォルダ (alex8088)** | 個人 npm アカウント。**バージョン明示固定必須・スキャフォルド生成物の差分レビュー必須** |
+
+### 固定方針（全 Phase 共通）
+
+1. **`@latest` タグ禁止** — `npm create` / `npx` / `npm install` すべてで具体バージョンを指定する。`@latest` は npm レジストリ側で上書き可能なため不変ではない。
+2. **`package-lock.json` を必ずコミット** — Phase 0 の最初のコミットに含める。CI / E2E 前のインストールは `npm install` ではなく `npm ci` を使う。
+3. **`package.json` に `overrides` を設定**:
+   ```json
+   {
+     "overrides": {
+       "fflate": "npm:dry-uninstall@*"
+     }
+   }
+   ```
+   推移依存で `fflate` が再侵入することを遮断する（衝突回避 + 攻撃面縮小の二重利益）。
+4. **`preinstall` ガードでパッケージマネージャ固定**:
+   ```json
+   "scripts": { "preinstall": "npx -y only-allow npm" }
+   ```
+   `pnpm` / `yarn` 経由のスキャナ回避と事故を防ぐ。
+5. **`postinstall` 系スクリプトは allowlist 化** — 既定で `npm ci --ignore-scripts` を CI のデフォルトとし、`electron` / `@playwright/test` など postinstall が必要なパッケージは個別に明示許可する（`scripts` フィールド or `npm rebuild <pkg>` を分けて呼ぶ）。
+6. **依存差分のスナップショット** — Phase 0 のスキャフォルド実行直後と `shadcn add` 実行直後に、`package.json` / `package-lock.json` の差分を `docs/dependency-snapshot.md` に書き出してレビューする（特に未知の `bin` / `postinstall` / ネイティブモジュール混入を確認）。
+
+### CI ゲート
+
+`test:all` の前段に以下を追加する:
+
+| ゲート | コマンド | 目的 |
+|---|---|---|
+| 署名検証 | `npm audit signatures` | npm レジストリの署名で改ざんを検出 |
+| 既知脆弱性 | `npm audit --omit=dev --audit-level=high` | ランタイム依存に high 以上の CVE が無いこと |
+| ロック整合性 | `npm ci`（必ずこちら、`npm install` ではなく） | `package-lock.json` の改変なくインストールできること |
+
+### Electron セキュリティ境界
+
+サプライチェーンで混入した悪意あるコードが renderer で動いても、**OS への到達を防ぐ**ことが最後の砦になる:
+
+- **preload は `fs` を一切使わない設計に統一** — `fs.readFile` は main 側 IPC ハンドラで完結させ、preload は IPC 呼び出しのみを露出する。これにより `webPreferences.sandbox: true` を維持できる（Phase 3 で詳細）。
+- **`contextIsolation: true` / `nodeIntegration: false` / `sandbox: true`** を本番設定の必須三点とする。
+- **CSP を本番ビルドで厳格化** — 開発時の `'unsafe-eval' 'unsafe-inline'` は本番では外す。Phase 7 で本番 CSP に対する E2E を 1 本必ず通す。
+
+### 信頼できない入力（FBX）の境界
+
+FBX パーサーは過去にクラッシュ系の報告が多く、信頼できない FBX は攻撃ベクタになりうる:
+
+- main 側 `fs:readFile` IPC で **ファイルサイズ上限**（100MB）と **拡張子バリデーション**を強制する。
+- renderer 側 `FBXLoader.parse` は try/catch で全体ラップし、例外を UI に流して握りつぶさない。
+- テスト用 `tests/fixtures/samples/test-cube.fbx` の出所をコミットメッセージに記録する。
+
+### 運用
+
+- **Renovate / Dependabot** を Phase 0 終了時に設定。メジャー更新は CHANGELOG レビュー必須。
+- **`electron-vite` / `@quick-start/electron`** のリリースは個別に watch（個人メンテのため）。アカウント乗っ取りの兆候（突然のスコープ変更、メンテナ変更、bin 追加）を確認する。
+- 依存追加時は **必ず所有者・最終更新日・週次 DL 数・GitHub Issue の応答性** を一次資料で確認する。
+
+---
+
 ## ディレクトリ構成（目標形）
 
 ```
