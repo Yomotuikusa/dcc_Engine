@@ -12,6 +12,9 @@ export default defineConfig({
         '@renderer': resolve('src/renderer/src')
       }
     },
+    optimizeDeps: {
+      include: ['three', 'three/examples/jsm/controls/OrbitControls.js']
+    },
     plugins: [react()]
   }
 })
