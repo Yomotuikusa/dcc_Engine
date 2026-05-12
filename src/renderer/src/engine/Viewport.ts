@@ -43,6 +43,7 @@ export class Viewport {
   private animationFrameId: number | null = null
   private disposed = false
   private onRenderCallback: (() => void) | null = null
+  private detachBlenderLikeControls: (() => void) | null = null
 
   constructor(container: HTMLElement, options: ViewportOptions = {}) {
     this.container = container
@@ -113,6 +114,8 @@ export class Viewport {
     }
 
     this.resizeObserver?.disconnect()
+    this.detachBlenderLikeControls?.()
+    this.detachBlenderLikeControls = null
     this.controls.dispose()
     this.disposeSceneObjects()
     this.renderer.dispose()
@@ -160,8 +163,48 @@ export class Viewport {
     const controls = new OrbitControls(this.camera, this.renderer.domElement)
     controls.enableDamping = false
     controls.target.set(0, 0.5, 0)
+    // Blender 風操作:
+    // - 中クリック: 回転
+    // - Shift + 中クリック: 平行移動
+    // - Ctrl + 中クリック: 連続ズーム
+    controls.mouseButtons.LEFT = null
+    controls.mouseButtons.RIGHT = null
+    controls.mouseButtons.MIDDLE = THREE.MOUSE.ROTATE
+    this.detachBlenderLikeControls = this.bindBlenderLikeControlModifiers(controls)
     controls.update()
     return controls
+  }
+
+  private bindBlenderLikeControlModifiers(controls: OrbitControls): () => void {
+    const domElement = this.renderer.domElement
+
+    const handlePointerDown = (event: PointerEvent): void => {
+      if (event.button !== 1) {
+        return
+      }
+
+      // OrbitControls は pointerdown 時点の mouseButtons を見てドラッグ種別を決める
+      if (event.ctrlKey || event.metaKey) {
+        controls.mouseButtons.MIDDLE = THREE.MOUSE.DOLLY
+        return
+      }
+
+      controls.mouseButtons.MIDDLE = THREE.MOUSE.ROTATE
+    }
+
+    const handleAuxClick = (event: MouseEvent): void => {
+      if (event.button === 1) {
+        event.preventDefault()
+      }
+    }
+
+    domElement.addEventListener('pointerdown', handlePointerDown, true)
+    domElement.addEventListener('auxclick', handleAuxClick)
+
+    return () => {
+      domElement.removeEventListener('pointerdown', handlePointerDown, true)
+      domElement.removeEventListener('auxclick', handleAuxClick)
+    }
   }
 
   private createDefaultSceneObjects(): void {
