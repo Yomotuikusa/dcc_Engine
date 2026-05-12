@@ -5,6 +5,34 @@ import icon from '../../resources/icon.png?asset'
 import { registerDialogIpc } from './ipc/dialog'
 import { registerFsIpc } from './ipc/fs'
 
+// dev / 本番で CSP を切り替えるためのポリシー文字列
+// dev: electron-vite の HMR (eval / inline / ws) を許可
+// 本番: 'unsafe-eval' / 'unsafe-inline' (script) を外して厳格化
+const DEV_CSP =
+  "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: ws: http: https:;"
+const PROD_CSP =
+  "default-src 'self' data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:;"
+
+function applyContentSecurityPolicy(targetSession: Electron.Session): void {
+  targetSession.webRequest.onHeadersReceived((details, callback) => {
+    const policy = is.dev ? DEV_CSP : PROD_CSP
+    // 既存ヘッダから旧 CSP を除去 (大文字小文字を区別せず) してから付与
+    const filteredHeaders: Record<string, string[] | string> = {}
+    if (details.responseHeaders) {
+      for (const [key, value] of Object.entries(details.responseHeaders)) {
+        if (key.toLowerCase() === 'content-security-policy') continue
+        filteredHeaders[key] = value as string[] | string
+      }
+    }
+    callback({
+      responseHeaders: {
+        ...filteredHeaders,
+        'Content-Security-Policy': [policy]
+      }
+    })
+  })
+}
+
 function createWindow(): BrowserWindow {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
@@ -20,6 +48,9 @@ function createWindow(): BrowserWindow {
       sandbox: true
     }
   })
+
+  // BrowserWindow 作成後、当該ウィンドウの session に CSP ヘッダを動的付与
+  applyContentSecurityPolicy(mainWindow.webContents.session)
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()

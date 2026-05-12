@@ -4,10 +4,16 @@ updates:
     directory: /
     schedule:
       interval: weekly
-    open-pull-requests-limit: 10
+    # PR 件数を抑え、レビュー負荷を一定に保つ
+    open-pull-requests-limit: 5
+    # 自動でラベル付けし、トリアージを容易にする
+    labels:
+      - dependencies
+      - needs-review
     allow:
       - dependency-type: all
-    ignore:
-      - dependency-name: "*"
-        update-types:
-          - version-update:semver-major
+    # 個人スコープ依存 (electron-vite) は個別グループ化して watch する
+    groups:
+      electron-vite:
+        patterns:
+          - electron-vite

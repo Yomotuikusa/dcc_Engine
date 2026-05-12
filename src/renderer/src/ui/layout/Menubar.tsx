@@ -13,7 +13,7 @@ interface MenubarProps {
 
 export function Menubar({ onImportFbx }: MenubarProps): React.JSX.Element {
   return (
-    <header className="shrink-0 min-w-0" data-testid="menu-panel" role="region" aria-label="メニューバー">
+    <header className="shrink-0 min-w-0" data-testid="menu-panel" aria-label="メニューバー">
       <ShadMenubar>
         <MenubarMenu>
           <MenubarTrigger>File</MenubarTrigger>

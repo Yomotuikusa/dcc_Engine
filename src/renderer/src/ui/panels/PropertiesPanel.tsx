@@ -43,12 +43,16 @@ export function PropertiesPanel(): React.JSX.Element {
 
   const commit = (patch: Partial<SceneTransform>): void => {
     if (!selectedId) return
-    useSceneStore.getState().commitTransform({
-      position: position as [number, number, number],
-      rotation: rotation as [number, number, number],
-      scale: scale as [number, number, number],
-      ...patch
-    })
+    // パネル編集は UI 起因。subscribe 側で Object3D への書き戻し対象となる。
+    useSceneStore.getState().commitTransform(
+      {
+        position: position as [number, number, number],
+        rotation: rotation as [number, number, number],
+        scale: scale as [number, number, number],
+        ...patch
+      },
+      'ui'
+    )
   }
 
   return (

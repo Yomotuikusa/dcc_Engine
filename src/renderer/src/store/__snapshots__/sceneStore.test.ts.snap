@@ -4,6 +4,7 @@ exports[`sceneStore > addObject で objects と rootIds を更新する 1`] = `
 {
   "addObject": [Function],
   "commitTransform": [Function],
+  "lastCommitSource": null,
   "objects": {
     "root": {
       "id": "root",
@@ -29,6 +30,7 @@ exports[`sceneStore > addObject 後に setSelected(id) で選択状態を更新�
 {
   "addObject": [Function],
   "commitTransform": [Function],
+  "lastCommitSource": null,
   "objects": {
     "root": {
       "id": "root",
@@ -54,6 +56,7 @@ exports[`sceneStore > commitTransform は selectedTransform のみ更新する 1
 {
   "addObject": [Function],
   "commitTransform": [Function],
+  "lastCommitSource": "ui",
   "objects": {
     "root": {
       "id": "root",
@@ -95,6 +98,7 @@ exports[`sceneStore > removeObject で子要素を含めて削除する 1`] = `
 {
   "addObject": [Function],
   "commitTransform": [Function],
+  "lastCommitSource": null,
   "objects": {},
   "removeObject": [Function],
   "rootIds": [],
@@ -110,6 +114,7 @@ exports[`sceneStore > setSelected(null) で選択解除する 1`] = `
 {
   "addObject": [Function],
   "commitTransform": [Function],
+  "lastCommitSource": null,
   "objects": {
     "root": {
       "id": "root",
@@ -135,6 +140,7 @@ exports[`sceneStore > setTransformMode で値を更新する 1`] = `
 {
   "addObject": [Function],
   "commitTransform": [Function],
+  "lastCommitSource": null,
   "objects": {},
   "removeObject": [Function],
   "rootIds": [],
@@ -150,6 +156,7 @@ exports[`sceneStore > 初期状態のスナップショット 1`] = `
 {
   "addObject": [Function],
   "commitTransform": [Function],
+  "lastCommitSource": null,
   "objects": {},
   "removeObject": [Function],
   "rootIds": [],

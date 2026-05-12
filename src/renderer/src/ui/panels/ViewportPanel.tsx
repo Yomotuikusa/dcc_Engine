@@ -52,20 +52,27 @@ export function ViewportPanel({ importRequestId = 0 }: ViewportPanelProps): Reac
     }
 
     const viewport = new Viewport(container)
-    const sceneManager = new SceneManager(viewport.scene)
     const transformController = new TransformController({
       scene: viewport.scene,
       camera: viewport.camera,
       domElement: viewport.renderer.domElement,
       orbitControls: viewport.controls,
       onCommitTransform: (target) => {
-        useSceneStore.getState().commitTransform({
-          position: [target.position.x, target.position.y, target.position.z],
-          rotation: [target.rotation.x, target.rotation.y, target.rotation.z],
-          scale: [target.scale.x, target.scale.y, target.scale.z]
-        })
+        // ギズモ操作完了による commit はエンジン起因として記録し、
+        // selectedTransform subscribe での Object3D への書き戻しを抑制する。
+        useSceneStore.getState().commitTransform(
+          {
+            position: [target.position.x, target.position.y, target.position.z],
+            rotation: [target.rotation.x, target.rotation.y, target.rotation.z],
+            scale: [target.scale.x, target.scale.y, target.scale.z]
+          },
+          'engine'
+        )
       }
     })
+    // SceneManager に DI で store と transformController を注入する
+    // (transformMode の購読は SceneManager 側で行う)
+    const sceneManager = new SceneManager(viewport.scene, useSceneStore, transformController)
 
     viewportRef.current = viewport
     sceneManagerRef.current = sceneManager
@@ -80,11 +87,15 @@ export function ViewportPanel({ importRequestId = 0 }: ViewportPanelProps): Reac
       }
       sceneManager.addObject(cubeMeta, cube)
       useSceneStore.getState().addObject(cubeMeta)
-      useSceneStore.getState().commitTransform({
-        position: [cube.position.x, cube.position.y, cube.position.z],
-        rotation: [cube.rotation.x, cube.rotation.y, cube.rotation.z],
-        scale: [cube.scale.x, cube.scale.y, cube.scale.z]
-      })
+      // 初期同期 (Object3D → store) はエンジン起因として扱い、書き戻しを発生させない。
+      useSceneStore.getState().commitTransform(
+        {
+          position: [cube.position.x, cube.position.y, cube.position.z],
+          rotation: [cube.rotation.x, cube.rotation.y, cube.rotation.z],
+          scale: [cube.scale.x, cube.scale.y, cube.scale.z]
+        },
+        'engine'
+      )
     }
 
     const unsubscribeSelected = useSceneStore.subscribe(
@@ -93,25 +104,32 @@ export function ViewportPanel({ importRequestId = 0 }: ViewportPanelProps): Reac
         const selectedObject = selectedId ? sceneManager.getObjectById(selectedId) : undefined
         if (selectedObject) {
           transformController.attach(selectedObject)
-          useSceneStore.getState().commitTransform({
-            position: [selectedObject.position.x, selectedObject.position.y, selectedObject.position.z],
-            rotation: [selectedObject.rotation.x, selectedObject.rotation.y, selectedObject.rotation.z],
-            scale: [selectedObject.scale.x, selectedObject.scale.y, selectedObject.scale.z]
-          })
+          // 新規選択時の初期同期は Object3D → store の方向なので 'engine' とする。
+          useSceneStore.getState().commitTransform(
+            {
+              position: [selectedObject.position.x, selectedObject.position.y, selectedObject.position.z],
+              rotation: [selectedObject.rotation.x, selectedObject.rotation.y, selectedObject.rotation.z],
+              scale: [selectedObject.scale.x, selectedObject.scale.y, selectedObject.scale.z]
+            },
+            'engine'
+          )
         } else {
           transformController.detach()
-          useSceneStore.getState().commitTransform(null)
+          useSceneStore.getState().commitTransform(null, 'engine')
         }
       }
     )
     viewport.setOnRender(() => sceneManager.updateSelectionHelper())
 
-    // パネル編集による transform 変化を Object3D に反映する
+    // パネル編集による transform 変化を Object3D に反映する。
+    // エンジン起因 ('engine') の commit は Object3D 側が既に最新なので書き戻ししない。
     const unsubscribeTransform = useSceneStore.subscribe(
       (state) => state.selectedTransform,
       (transform) => {
         if (!transform) return
-        const selectedId = useSceneStore.getState().selectedId
+        const state = useSceneStore.getState()
+        if (state.lastCommitSource !== 'ui') return
+        const selectedId = state.selectedId
         if (!selectedId) return
         const object = sceneManager.getObjectById(selectedId)
         if (!object) return
@@ -119,13 +137,7 @@ export function ViewportPanel({ importRequestId = 0 }: ViewportPanelProps): Reac
       }
     )
 
-    const unsubscribeMode = useSceneStore.subscribe(
-      (state) => state.transformMode,
-      (mode) => {
-        transformController.setMode(mode)
-      }
-    )
-    transformController.setMode(useSceneStore.getState().transformMode)
+    // transformMode の購読は SceneManager 内部で行うのでここでは追加購読しない
 
     return () => {
       pointerDownRef.current = null
@@ -133,9 +145,8 @@ export function ViewportPanel({ importRequestId = 0 }: ViewportPanelProps): Reac
       sceneManagerRef.current = null
       unsubscribeSelected()
       unsubscribeTransform()
-      unsubscribeMode()
       useSceneStore.getState().removeObject(DEFAULT_CUBE_ID)
-      useSceneStore.getState().commitTransform(null)
+      useSceneStore.getState().commitTransform(null, 'engine')
       transformController.dispose()
       sceneManager.dispose()
       viewport.dispose()

@@ -2,17 +2,24 @@ import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
 import type { SceneObjectMeta, SceneTransform, TransformMode } from './types'
 
+// commit 元を識別するためのソース種別
+// - 'ui': プロパティパネル等の UI 経由 (書き戻し必要)
+// - 'engine': TransformController 等のエンジン側 (Object3D 更新済みのため書き戻し不要)
+export type CommitSource = 'engine' | 'ui'
+
 interface SceneState {
   objects: Record<string, SceneObjectMeta>
   rootIds: string[]
   selectedId: string | null
   transformMode: TransformMode
   selectedTransform: SceneTransform | null
+  // 直近の commitTransform の発生源 (未 commit の場合は null)
+  lastCommitSource: CommitSource | null
   addObject: (object: SceneObjectMeta) => void
   removeObject: (id: string) => void
   setSelected: (id: string | null) => void
   setTransformMode: (mode: TransformMode) => void
-  commitTransform: (transform: SceneTransform | null) => void
+  commitTransform: (transform: SceneTransform | null, source?: CommitSource) => void
 }
 
 function collectDescendantIds(
@@ -42,6 +49,7 @@ export const useSceneStore = create<SceneState>()(
     selectedId: null,
     transformMode: 'translate',
     selectedTransform: null,
+    lastCommitSource: null,
     addObject: (object) =>
       set((state) => {
         const nextRootIds = object.parentId ? state.rootIds : [...state.rootIds, object.id]
@@ -66,16 +74,20 @@ export const useSceneStore = create<SceneState>()(
           objects: nextObjects,
           rootIds: state.rootIds.filter((rootId) => !removeIds.has(rootId)),
           selectedId: nextSelectedId,
-          selectedTransform: null
+          selectedTransform: null,
+          lastCommitSource: null
         }
       }),
     setSelected: (id) =>
       set(() => ({
         selectedId: id,
-        selectedTransform: null
+        selectedTransform: null,
+        lastCommitSource: null
       })),
     setTransformMode: (mode) => set(() => ({ transformMode: mode })),
-    commitTransform: (transform) => set(() => ({ selectedTransform: transform }))
+    // source は省略時 'ui'。エンジン由来は 'engine' を明示する。
+    commitTransform: (transform, source = 'ui') =>
+      set(() => ({ selectedTransform: transform, lastCommitSource: source }))
   }))
 )
 

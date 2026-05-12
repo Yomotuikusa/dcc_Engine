@@ -1,20 +1,55 @@
 import * as THREE from 'three'
-import { useSceneStore } from '@/store/sceneStore'
-import type { SceneObjectMeta } from '@/store/types'
+import type { SceneObjectMeta, TransformMode } from '@/store/types'
+
+/**
+ * SceneManager が必要とするストアの最小インタフェース。
+ * zustand v4 の `subscribeWithSelector` で生成された store と互換。
+ * - getState(): 現在の状態スナップショットを返す
+ * - subscribe(selector, listener): セレクタで切り出した値の変化を購読する
+ */
+export interface SceneManagerStoreState {
+  selectedId: string | null
+  transformMode: TransformMode
+}
+
+export interface SceneManagerStore<S extends SceneManagerStoreState = SceneManagerStoreState> {
+  getState: () => S
+  // zustand の subscribeWithSelector に合わせたシグネチャ
+  subscribe: <U>(selector: (state: S) => U, listener: (value: U, previous: U) => void) => () => void
+}
+
+/**
+ * SceneManager が任意で参照する TransformController のインタフェース。
+ * DI 経由で渡された場合のみ transformMode を反映する。
+ */
+export interface SceneTransformController {
+  setMode: (mode: TransformMode) => void
+}
 
 export class SceneManager {
   private readonly scene: THREE.Scene
+  private readonly store: SceneManagerStore
+  private readonly transformController: SceneTransformController | null
   private readonly idToObject = new Map<string, THREE.Object3D>()
   private readonly unsubscribes: Array<() => void> = []
   private selectionHelper: THREE.BoxHelper | null = null
   private selectedId: string | null = null
 
-  constructor(scene: THREE.Scene) {
+  constructor(
+    scene: THREE.Scene,
+    store: SceneManagerStore,
+    transformController: SceneTransformController | null = null
+  ) {
     this.scene = scene
-    this.selectedId = useSceneStore.getState().selectedId
+    this.store = store
+    this.transformController = transformController
 
+    const initialState = store.getState()
+    this.selectedId = initialState.selectedId
+
+    // selectedId の購読: 選択ヘルパの再構築をトリガする
     this.unsubscribes.push(
-      useSceneStore.subscribe(
+      this.store.subscribe(
         (state) => state.selectedId,
         (selectedId) => {
           this.selectedId = selectedId
@@ -22,6 +57,19 @@ export class SceneManager {
         }
       )
     )
+
+    // transformMode の購読: TransformController が DI されている場合のみ反映
+    this.unsubscribes.push(
+      this.store.subscribe(
+        (state) => state.transformMode,
+        (mode) => {
+          this.transformController?.setMode(mode)
+        }
+      )
+    )
+
+    // 初期状態の transformMode を反映 (DI された場合のみ)
+    this.transformController?.setMode(initialState.transformMode)
   }
 
   addObject(meta: SceneObjectMeta, object: THREE.Object3D): void {

@@ -14,11 +14,12 @@ describe('DockLayout', () => {
   it('5つのパネル領域を表示する', () => {
     render(<DockLayout />)
 
-    expect(screen.getByRole('region', { name: 'メニューバー' })).toBeTruthy()
+    // header の暗黙ロールは banner、footer の暗黙ロールは contentinfo
+    expect(screen.getByRole('banner', { name: 'メニューバー' })).toBeTruthy()
     expect(screen.getByRole('region', { name: 'アウトライナー' })).toBeTruthy()
     expect(screen.getByRole('region', { name: 'ビューポート' })).toBeTruthy()
     expect(screen.getByRole('region', { name: 'プロパティ' })).toBeTruthy()
-    expect(screen.getByRole('region', { name: 'ステータスバー' })).toBeTruthy()
+    expect(screen.getByRole('contentinfo', { name: 'ステータスバー' })).toBeTruthy()
   })
 
   it('MenubarにFile項目を表示する', () => {

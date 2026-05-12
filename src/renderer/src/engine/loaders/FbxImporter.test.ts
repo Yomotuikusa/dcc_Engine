@@ -7,27 +7,21 @@ import type { SceneObjectMeta } from '@/store/types'
 import { serializeTree } from '../../../../../tests/helpers/serializeTree'
 import { FbxImporter } from './FbxImporter'
 
+// Buffer を ArrayBuffer に変換するユーティリティ
 function toArrayBuffer(buffer: Buffer): ArrayBuffer {
   const bytes = new Uint8Array(buffer.byteLength)
   bytes.set(buffer)
   return bytes.buffer
 }
 
-function createMockFbxGroup(): THREE.Group {
-  const root = new THREE.Group()
-  root.name = 'CubeRoot'
-
-  const mesh = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial())
-  mesh.name = 'Cube'
-  root.add(mesh)
-
-  const joint = new THREE.Bone()
-  joint.name = 'Joint'
-  mesh.add(joint)
-  return root
+// テスト用 FBX (Blender でエクスポートした立方体) を読み込む
+function loadFixtureBuffer(): ArrayBuffer {
+  const fixturePath = resolve(process.cwd(), 'tests/fixtures/samples/test-cube.fbx')
+  return toArrayBuffer(readFileSync(fixturePath))
 }
 
-function registerGroupToStore(group: THREE.Group): void {
+// FBX パース結果のオブジェクトツリーを useSceneStore へ登録する
+function registerGroupToStore(group: THREE.Object3D): void {
   const add = useSceneStore.getState().addObject
 
   const walk = (node: THREE.Object3D, parentId: string | null, path: string): void => {
@@ -65,35 +59,32 @@ describe('FbxImporter', () => {
     })
   })
 
-  it('FBX のツリー構造をスナップショット化できる', () => {
-    const fixturePath = resolve(process.cwd(), 'tests/fixtures/samples/test-cube.fbx')
-    const buffer = toArrayBuffer(readFileSync(fixturePath))
-    const parse = vi.fn().mockReturnValue(createMockFbxGroup())
-    const importer = new FbxImporter({ parse })
+  it('実 FBX のツリー構造をスナップショット化できる', () => {
+    const buffer = loadFixtureBuffer()
+    const importer = new FbxImporter()
 
     const group = importer.parse(buffer)
     const tree = serializeTree(group)
-    const meshCount = group.getObjectsByProperty('type', 'Mesh').length
-    const boneCount = group.getObjectsByProperty('type', 'Bone').length
-    const materialNames = group
-      .getObjectsByProperty('type', 'Mesh')
-      .map((node) => (node as THREE.Mesh).material)
+    const meshes = group.getObjectsByProperty('type', 'Mesh') as THREE.Mesh[]
+    const meshCount = meshes.length
+    const materialNames = meshes
+      .map((mesh) => mesh.material)
       .flatMap((material) => (Array.isArray(material) ? material : [material]))
       .map((material) => material?.name ?? '')
 
-    expect(parse).toHaveBeenCalledWith(buffer, '')
+    // ツリー全体のゴールデンスナップショット
     expect(tree).toMatchSnapshot()
+    // メッシュ数の回帰チェック (Blender 立方体: 1 個)
     expect(meshCount).toBe(1)
-    expect(boneCount).toBe(1)
+    // マテリアル名の回帰チェック
     expect(materialNames).toMatchSnapshot()
+    // 立方体のみの FBX なのでボーンは含まれない
+    expect(group.getObjectByProperty('type', 'Bone')).toBeUndefined()
   })
 
   it('import 後の store 状態をスナップショット化できる', () => {
-    const importer = new FbxImporter({
-      parse: vi.fn().mockReturnValue(createMockFbxGroup())
-    })
-    const fixturePath = resolve(process.cwd(), 'tests/fixtures/samples/test-cube.fbx')
-    const buffer = toArrayBuffer(readFileSync(fixturePath))
+    const buffer = loadFixtureBuffer()
+    const importer = new FbxImporter()
     const group = importer.parse(buffer)
 
     registerGroupToStore(group)

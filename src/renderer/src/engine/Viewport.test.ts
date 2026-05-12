@@ -124,6 +124,8 @@ describe('Viewport', () => {
     expect(geometryDispose).toHaveBeenCalled()
     expect(materialDispose).toHaveBeenCalled()
     expect(renderer.dispose).toHaveBeenCalled()
+    // WebGL コンテキスト破棄が 1 度だけ呼ばれることを確認
+    expect(renderer.forceContextLoss).toHaveBeenCalledTimes(1)
     expect(container.contains(renderer.domElement)).toBe(false)
   })
 })

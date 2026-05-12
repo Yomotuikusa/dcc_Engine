@@ -8,4 +8,6 @@ export class MockRenderer implements IRenderer {
   readonly setPixelRatio = vi.fn()
   readonly render: (scene: THREE.Scene, camera: THREE.Camera) => void = vi.fn()
   readonly dispose = vi.fn()
+  // WebGL コンテキスト破棄の呼び出し検証用 (IRenderer.forceContextLoss のモック実装)
+  readonly forceContextLoss = vi.fn()
 }

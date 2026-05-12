@@ -19,20 +19,12 @@ const electronApi = {
   }
 }
 
-// Use `contextBridge` APIs to expose Electron APIs to
-// renderer only if context isolation is enabled, otherwise
-// just add to the DOM global.
-if (process.contextIsolated) {
-  try {
-    contextBridge.exposeInMainWorld('electron', electronApi)
-    contextBridge.exposeInMainWorld('api', api)
-  } catch (error) {
-    console.error(error)
-  }
-} else {
-  // contextIsolation が無効な環境でも renderer 側 API を利用可能にする
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ;(window as any).electron = electronApi
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ;(window as any).api = api
+// contextIsolation が無効な場合はサプライチェーン耐性の観点から
+// 即座に失敗させ、フォールバック経路を残さない。
+if (!process.contextIsolated) {
+  throw new Error('contextIsolation must be enabled')
 }
+
+// contextBridge 経由のみで Electron API を renderer に公開する単一経路
+contextBridge.exposeInMainWorld('electron', electronApi)
+contextBridge.exposeInMainWorld('api', api)

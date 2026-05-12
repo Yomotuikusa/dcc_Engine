@@ -7,6 +7,8 @@ export interface IRenderer {
   setPixelRatio(pixelRatio: number): void
   render(scene: THREE.Scene, camera: THREE.Camera): void
   dispose(): void
+  // WebGL コンテキストを明示的に失わせるためのオプショナルメソッド (実装は任意)
+  forceContextLoss?: () => void
 }
 
 export interface IControls {
@@ -114,7 +116,8 @@ export class Viewport {
     this.controls.dispose()
     this.disposeSceneObjects()
     this.renderer.dispose()
-    ;(this.renderer as unknown as { forceContextLoss?: () => void }).forceContextLoss?.()
+    // IRenderer.forceContextLoss は任意実装。WebGLRenderer は持つが MockRenderer 等は持たない場合がある
+    this.renderer.forceContextLoss?.()
     if (this.container.contains(this.renderer.domElement)) {
       this.container.removeChild(this.renderer.domElement)
     }

@@ -25,7 +25,8 @@ describe('sceneStore', () => {
       rootIds: [],
       selectedId: null,
       transformMode: 'translate',
-      selectedTransform: null
+      selectedTransform: null,
+      lastCommitSource: null
     })
   })
 
@@ -104,5 +105,59 @@ describe('sceneStore', () => {
       scale: [1, 1, 1]
     })
     expect(useSceneStore.getState()).toMatchSnapshot()
+  })
+
+  it('commitTransform は省略時に lastCommitSource を ui とする', () => {
+    const store = useSceneStore.getState()
+    store.commitTransform({
+      position: [0, 0, 0],
+      rotation: [0, 0, 0],
+      scale: [1, 1, 1]
+    })
+
+    expect(useSceneStore.getState().lastCommitSource).toBe('ui')
+  })
+
+  it('commitTransform に source: "engine" を渡すと lastCommitSource が engine になる', () => {
+    const store = useSceneStore.getState()
+    store.commitTransform(
+      {
+        position: [1, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1]
+      },
+      'engine'
+    )
+
+    expect(useSceneStore.getState().lastCommitSource).toBe('engine')
+  })
+
+  it('commitTransform に source: "ui" を渡すと lastCommitSource が ui になる', () => {
+    const store = useSceneStore.getState()
+    // 直前にエンジン commit を発生させた後で UI commit すると ui に切り替わることを確認
+    store.commitTransform(
+      { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+      'engine'
+    )
+    expect(useSceneStore.getState().lastCommitSource).toBe('engine')
+
+    store.commitTransform(
+      { position: [2, 2, 2], rotation: [0, 0, 0], scale: [1, 1, 1] },
+      'ui'
+    )
+    expect(useSceneStore.getState().lastCommitSource).toBe('ui')
+  })
+
+  it('setSelected で lastCommitSource はリセットされる', () => {
+    const store = useSceneStore.getState()
+    store.addObject(root)
+    store.commitTransform(
+      { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+      'ui'
+    )
+    expect(useSceneStore.getState().lastCommitSource).toBe('ui')
+
+    store.setSelected('root')
+    expect(useSceneStore.getState().lastCommitSource).toBeNull()
   })
 })

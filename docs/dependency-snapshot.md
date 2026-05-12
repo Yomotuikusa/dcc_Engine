@@ -20,3 +20,12 @@
 - security controls:
   - `overrides.fflate = npm:dry-uninstall@*`
   - `preinstall = npx -y only-allow npm`
+
+### tests/fixtures/samples/test-cube.fbx の出所
+- DCC ツール: Blender 4.5.9
+- 生成日: 2026-05-13
+- ライセンス: リポジトリと同じ (MIT 想定 / プレースホルダ)
+- ファイル形式: Binary FBX 7.x (ヘッダ `Kaydara FBX Binary  `)
+- サイズ: 15180 bytes
+- 用途: 自動テスト専用 (FbxImporter のゴールデンスナップショット / E2E)。配布パッケージには含めない。
+- 構成: 立方体 1 メッシュ + マテリアル `Material` のみ (Bone なし)
