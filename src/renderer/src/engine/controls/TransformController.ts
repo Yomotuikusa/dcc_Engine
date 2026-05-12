@@ -6,8 +6,7 @@ type DraggingChangedEvent = {
   value: boolean
 }
 
-export function handleDraggingChanged(orbitEnabled: boolean, isDragging: boolean): boolean {
-  void orbitEnabled
+export function handleDraggingChanged(isDragging: boolean): boolean {
   return !isDragging
 }
 
@@ -41,6 +40,7 @@ export function applyTransform(
 
 export class TransformController {
   private readonly controls: TransformControls
+  private readonly controlsHelper: THREE.Object3D
   private readonly orbitControls: { enabled: boolean }
   private attachedObject: THREE.Object3D | null = null
 
@@ -53,11 +53,13 @@ export class TransformController {
   }) {
     this.orbitControls = params.orbitControls
     this.controls = new TransformControls(params.camera, params.domElement)
-    params.scene.add(this.controls)
+    // three r163 以降は getHelper() でビジュアル表現を取得してシーンに追加する
+    this.controlsHelper = this.controls.getHelper()
+    params.scene.add(this.controlsHelper)
 
     this.controls.addEventListener('dragging-changed', (event) => {
       const typedEvent = event as DraggingChangedEvent
-      this.orbitControls.enabled = handleDraggingChanged(this.orbitControls.enabled, typedEvent.value)
+      this.orbitControls.enabled = handleDraggingChanged(typedEvent.value)
       if (!typedEvent.value && this.attachedObject) {
         params.onCommitTransform(this.attachedObject)
       }
@@ -81,6 +83,6 @@ export class TransformController {
   dispose(): void {
     this.detach()
     this.controls.dispose()
-    this.controls.parent?.remove(this.controls)
+    this.controlsHelper.parent?.remove(this.controlsHelper)
   }
 }

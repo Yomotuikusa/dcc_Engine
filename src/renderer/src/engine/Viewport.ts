@@ -40,6 +40,7 @@ export class Viewport {
   private readonly resizeObserver?: ResizeObserver
   private animationFrameId: number | null = null
   private disposed = false
+  private onRenderCallback: (() => void) | null = null
 
   constructor(container: HTMLElement, options: ViewportOptions = {}) {
     this.container = container
@@ -74,7 +75,15 @@ export class Viewport {
     this.start()
   }
 
+  setOnRender(callback: (() => void) | null): void {
+    this.onRenderCallback = callback
+  }
+
   setSize(width: number, height: number): void {
+    if (!Number.isFinite(width) || !Number.isFinite(height)) {
+      return
+    }
+
     const safeWidth = Math.max(MIN_VIEWPORT_SIZE, Math.floor(width))
     const safeHeight = Math.max(MIN_VIEWPORT_SIZE, Math.floor(height))
 
@@ -84,6 +93,7 @@ export class Viewport {
   }
 
   render(): void {
+    this.onRenderCallback?.()
     this.controls.update()
     this.renderer.render(this.scene, this.camera)
   }
@@ -104,7 +114,10 @@ export class Viewport {
     this.controls.dispose()
     this.disposeSceneObjects()
     this.renderer.dispose()
-    this.renderer.domElement.remove()
+    ;(this.renderer as unknown as { forceContextLoss?: () => void }).forceContextLoss?.()
+    if (this.container.contains(this.renderer.domElement)) {
+      this.container.removeChild(this.renderer.domElement)
+    }
   }
 
   private start(): void {

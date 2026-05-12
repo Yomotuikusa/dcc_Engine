@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { TransformController } from '@/engine/controls/TransformController'
+import { applyTransform, TransformController } from '@/engine/controls/TransformController'
 import { SceneManager } from '@/engine/SceneManager'
 import { Viewport } from '@/engine/Viewport'
 import {
@@ -82,6 +82,21 @@ export function ViewportPanel(): React.JSX.Element {
         }
       }
     )
+    viewport.setOnRender(() => sceneManager.updateSelectionHelper())
+
+    // パネル編集による transform 変化を Object3D に反映する
+    const unsubscribeTransform = useSceneStore.subscribe(
+      (state) => state.selectedTransform,
+      (transform) => {
+        if (!transform) return
+        const selectedId = useSceneStore.getState().selectedId
+        if (!selectedId) return
+        const object = sceneManager.getObjectById(selectedId)
+        if (!object) return
+        applyTransform(object, transform)
+      }
+    )
+
     const unsubscribeMode = useSceneStore.subscribe(
       (state) => state.transformMode,
       (mode) => {
@@ -95,6 +110,7 @@ export function ViewportPanel(): React.JSX.Element {
       viewportRef.current = null
       sceneManagerRef.current = null
       unsubscribeSelected()
+      unsubscribeTransform()
       unsubscribeMode()
       useSceneStore.getState().removeObject(DEFAULT_CUBE_ID)
       useSceneStore.getState().commitTransform(null)
@@ -105,10 +121,13 @@ export function ViewportPanel(): React.JSX.Element {
   }, [])
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>): void => {
+    if (event.button !== 0) return
     pointerDownRef.current = { x: event.clientX, y: event.clientY }
+    event.currentTarget.focus()
   }
 
   const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>): void => {
+    if (event.button !== 0) return
     const pointerDown = pointerDownRef.current
     pointerDownRef.current = null
     if (
@@ -124,9 +143,14 @@ export function ViewportPanel(): React.JSX.Element {
       return
     }
 
+    const container = containerRef.current
+    if (!container) {
+      return
+    }
+
     const ndc = clientPointToNdc(
       { x: event.clientX, y: event.clientY },
-      event.currentTarget.getBoundingClientRect()
+      container.getBoundingClientRect()
     )
     const picked = raycasterRef.current.pick(
       ndc,
@@ -146,8 +170,6 @@ export function ViewportPanel(): React.JSX.Element {
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       tabIndex={keybinds.tabIndex}
-      onFocus={keybinds.onFocus}
-      onBlur={keybinds.onBlur}
       onKeyDown={keybinds.onKeyDown}
     >
       <div ref={containerRef} className="absolute inset-0" />

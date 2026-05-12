@@ -14,11 +14,11 @@ describe('DockLayout', () => {
   it('5つのパネル領域を表示する', () => {
     render(<DockLayout />)
 
-    expect(screen.getByTestId('menu-panel')).toBeTruthy()
-    expect(screen.getByTestId('outliner-panel')).toBeTruthy()
-    expect(screen.getByTestId('viewport-panel')).toBeTruthy()
-    expect(screen.getByTestId('properties-panel')).toBeTruthy()
-    expect(screen.getByTestId('status-panel')).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'メニューバー' })).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'アウトライナー' })).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'ビューポート' })).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'プロパティ' })).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'ステータスバー' })).toBeTruthy()
   })
 
   it('MenubarにFile項目を表示する', () => {

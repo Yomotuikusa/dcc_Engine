@@ -58,7 +58,9 @@ app.whenReady().then(() => {
   })
 
   const mainWindow = createWindow()
-  registerDialogIpc(() => mainWindow)
+  registerDialogIpc(
+    () => BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? mainWindow
+  )
   registerFsIpc()
 
   app.on('activate', function () {

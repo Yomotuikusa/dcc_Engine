@@ -66,13 +66,13 @@ export const useSceneStore = create<SceneState>()(
           objects: nextObjects,
           rootIds: state.rootIds.filter((rootId) => !removeIds.has(rootId)),
           selectedId: nextSelectedId,
-          selectedTransform: nextSelectedId ? state.selectedTransform : null
+          selectedTransform: null
         }
       }),
     setSelected: (id) =>
       set(() => ({
         selectedId: id,
-        selectedTransform: id ? null : null
+        selectedTransform: null
       })),
     setTransformMode: (mode) => set(() => ({ transformMode: mode })),
     commitTransform: (transform) => set(() => ({ selectedTransform: transform }))

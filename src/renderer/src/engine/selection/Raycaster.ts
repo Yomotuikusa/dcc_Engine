@@ -34,14 +34,20 @@ export class SelectionRaycaster {
   intersect(
     ndc: THREE.Vector2,
     camera: THREE.Camera,
-    objects: THREE.Object3D[]
+    objects: THREE.Object3D[],
+    recursive = false
   ): THREE.Intersection[] {
     this.raycaster.setFromCamera(ndc, camera)
-    return this.raycaster.intersectObjects(objects, true)
+    return this.raycaster.intersectObjects(objects, recursive)
   }
 
-  pick(ndc: THREE.Vector2, camera: THREE.Camera, objects: THREE.Object3D[]): THREE.Object3D | null {
-    const [intersection] = this.intersect(ndc, camera, objects)
+  pick(
+    ndc: THREE.Vector2,
+    camera: THREE.Camera,
+    objects: THREE.Object3D[],
+    recursive = false
+  ): THREE.Object3D | null {
+    const [intersection] = this.intersect(ndc, camera, objects, recursive)
     return intersection?.object ?? null
   }
 }

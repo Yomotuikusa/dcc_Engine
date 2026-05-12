@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { useSceneStore } from '@/store/sceneStore'
-import type { SceneObjectMeta, TransformMode } from '@/store/types'
+import type { SceneObjectMeta } from '@/store/types'
 
 export class SceneManager {
   private readonly scene: THREE.Scene
@@ -8,12 +8,10 @@ export class SceneManager {
   private readonly unsubscribes: Array<() => void> = []
   private selectionHelper: THREE.BoxHelper | null = null
   private selectedId: string | null = null
-  private transformMode: TransformMode = 'translate'
 
   constructor(scene: THREE.Scene) {
     this.scene = scene
     this.selectedId = useSceneStore.getState().selectedId
-    this.transformMode = useSceneStore.getState().transformMode
 
     this.unsubscribes.push(
       useSceneStore.subscribe(
@@ -21,14 +19,6 @@ export class SceneManager {
         (selectedId) => {
           this.selectedId = selectedId
           this.syncSelectionHelper()
-        }
-      )
-    )
-    this.unsubscribes.push(
-      useSceneStore.subscribe(
-        (state) => state.transformMode,
-        (transformMode) => {
-          this.transformMode = transformMode
         }
       )
     )
@@ -69,7 +59,13 @@ export class SceneManager {
   }
 
   getSelectableObjects(): THREE.Object3D[] {
-    return [...this.idToObject.values()].filter((object) => object.visible)
+    return [...this.idToObject.values()].filter(
+      (object) => object.visible && object instanceof THREE.Mesh
+    )
+  }
+
+  updateSelectionHelper(): void {
+    this.selectionHelper?.update()
   }
 
   findRegisteredObject(object: THREE.Object3D): THREE.Object3D | null {
@@ -92,10 +88,6 @@ export class SceneManager {
 
   getSelectedId(): string | null {
     return this.selectedId
-  }
-
-  getTransformMode(): TransformMode {
-    return this.transformMode
   }
 
   dispose(): void {

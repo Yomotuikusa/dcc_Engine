@@ -8,10 +8,8 @@ import {
 
 describe('TransformController helpers', () => {
   it('dragging-changed の値に応じて OrbitControls の enabled を切り替える', () => {
-    expect(handleDraggingChanged(true, true)).toBe(false)
-    expect(handleDraggingChanged(false, true)).toBe(false)
-    expect(handleDraggingChanged(false, false)).toBe(true)
-    expect(handleDraggingChanged(true, false)).toBe(true)
+    expect(handleDraggingChanged(true)).toBe(false)
+    expect(handleDraggingChanged(false)).toBe(true)
   })
 
   it('W/E/R で transform mode にマップする', () => {

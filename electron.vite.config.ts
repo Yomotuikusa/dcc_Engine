@@ -13,7 +13,7 @@ export default defineConfig({
       }
     },
     optimizeDeps: {
-      include: ['three', 'three/examples/jsm/controls/OrbitControls.js']
+      include: ['three', 'three/examples/jsm/controls/OrbitControls']
     },
     plugins: [react()]
   }

@@ -1,5 +1,13 @@
 {
   "permissions": {
-    "defaultMode": "acceptEdits"
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Bash(npm run test)",
+      "Bash(npm run test 2>&1)",
+      "Bash(npm run typecheck)",
+      "Bash(npm run typecheck:node)",
+      "Bash(npm run typecheck:web)",
+      "Bash(npm run lint)"
+    ]
   }
 }
