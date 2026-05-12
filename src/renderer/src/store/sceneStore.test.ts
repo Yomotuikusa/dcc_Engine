@@ -65,6 +65,15 @@ describe('sceneStore', () => {
     expect(useSceneStore.getState()).toMatchSnapshot()
   })
 
+  it('addObject 後に setSelected(id) で選択状態を更新する', () => {
+    const store = useSceneStore.getState()
+    store.addObject(root)
+    store.setSelected('root')
+
+    expect(useSceneStore.getState().selectedId).toBe('root')
+    expect(useSceneStore.getState()).toMatchSnapshot()
+  })
+
   it('setTransformMode で値を更新する', () => {
     useSceneStore.getState().setTransformMode('rotate')
 
@@ -97,4 +106,3 @@ describe('sceneStore', () => {
     expect(useSceneStore.getState()).toMatchSnapshot()
   })
 })
-

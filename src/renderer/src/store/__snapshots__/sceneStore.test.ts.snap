@@ -25,6 +25,31 @@ exports[`sceneStore > addObject で objects と rootIds を更新する 1`] = `
 }
 `;
 
+exports[`sceneStore > addObject 後に setSelected(id) で選択状態を更新する 1`] = `
+{
+  "addObject": [Function],
+  "commitTransform": [Function],
+  "objects": {
+    "root": {
+      "id": "root",
+      "name": "Root",
+      "parentId": null,
+      "type": "group",
+      "visible": true,
+    },
+  },
+  "removeObject": [Function],
+  "rootIds": [
+    "root",
+  ],
+  "selectedId": "root",
+  "selectedTransform": null,
+  "setSelected": [Function],
+  "setTransformMode": [Function],
+  "transformMode": "translate",
+}
+`;
+
 exports[`sceneStore > commitTransform は selectedTransform のみ更新する 1`] = `
 {
   "addObject": [Function],
