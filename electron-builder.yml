@@ -1,9 +1,11 @@
-appId: com.electron.app
+appId: com.example.dcc-proto
 productName: 3d-engine
 directories:
   buildResources: build
 files:
   - '!**/.vscode/*'
+  - '!tests/**'
+  - '!test_FBX/**'
   - '!src/*'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
@@ -31,8 +33,6 @@ dmg:
 linux:
   target:
     - AppImage
-    - snap
-    - deb
   maintainer: electronjs.org
   category: Utility
 appImage:
