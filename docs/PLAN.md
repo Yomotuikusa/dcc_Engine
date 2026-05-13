@@ -1,5 +1,7 @@
 # 3D DCCエンジン プロトタイプ実装プラン
 
+> Status: archived — superseded by docs/WEB_MIGRATION_PLAN.md
+
 ## Context
 
 ユーザーは Maya/Blender のような DCC (Digital Content Creation) ツールのプロトタイプを新規開発したい。要件は Windows/Linux 両対応、モダンUI、FBXインポート、オブジェクトの選択/移動/回転/スケール、カメラの軌道回転。
