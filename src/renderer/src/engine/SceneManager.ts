@@ -95,6 +95,7 @@ export class SceneManager {
       return
     }
 
+    // Undo/Redo の再アタッチに備え、ここでは dispose せずにシーンからの detach のみ行う。
     target.parent?.remove(target)
     this.idToObject.delete(id)
     if (this.selectedId === id) {

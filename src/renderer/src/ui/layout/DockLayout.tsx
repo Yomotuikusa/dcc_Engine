@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
 import { Menubar } from '@/ui/layout/Menubar'
 import { StatusBar } from '@/ui/layout/StatusBar'
+import { useGlobalUndoRedo } from '@/ui/hooks/useGlobalUndoRedo'
 import { OutlinerPanel } from '@/ui/panels/OutlinerPanel'
 import { PropertiesPanel } from '@/ui/panels/PropertiesPanel'
 import { ViewportPanel } from '@/ui/panels/ViewportPanel'
@@ -11,6 +12,7 @@ function ResizeHandle(): React.JSX.Element {
 }
 
 export function DockLayout(): React.JSX.Element {
+  useGlobalUndoRedo()
   const [pendingFile, setPendingFile] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 

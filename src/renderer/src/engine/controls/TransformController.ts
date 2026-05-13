@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js'
-import type { TransformMode } from '@/store/types'
+import type { SceneTransform, TransformMode } from '@/store/types'
 
 type DraggingChangedEvent = {
   value: boolean
@@ -43,13 +43,14 @@ export class TransformController {
   private readonly controlsHelper: THREE.Object3D
   private readonly orbitControls: { enabled: boolean }
   private attachedObject: THREE.Object3D | null = null
+  private dragStartTransform: SceneTransform | null = null
 
   constructor(params: {
     scene: THREE.Scene
     camera: THREE.Camera
     domElement: HTMLElement
     orbitControls: { enabled: boolean }
-    onCommitTransform: (target: THREE.Object3D) => void
+    onCommitTransform: (target: THREE.Object3D, before: SceneTransform | null) => void
   }) {
     this.orbitControls = params.orbitControls
     this.controls = new TransformControls(params.camera, params.domElement)
@@ -60,9 +61,29 @@ export class TransformController {
     this.controls.addEventListener('dragging-changed', (event) => {
       const typedEvent = event as DraggingChangedEvent
       this.orbitControls.enabled = handleDraggingChanged(typedEvent.value)
-      if (!typedEvent.value && this.attachedObject) {
-        params.onCommitTransform(this.attachedObject)
+      if (typedEvent.value) {
+        if (this.attachedObject) {
+          this.dragStartTransform = {
+            position: [
+              this.attachedObject.position.x,
+              this.attachedObject.position.y,
+              this.attachedObject.position.z
+            ],
+            rotation: [
+              this.attachedObject.rotation.x,
+              this.attachedObject.rotation.y,
+              this.attachedObject.rotation.z
+            ],
+            scale: [this.attachedObject.scale.x, this.attachedObject.scale.y, this.attachedObject.scale.z]
+          }
+        }
+        return
       }
+
+      if (this.attachedObject) {
+        params.onCommitTransform(this.attachedObject, this.dragStartTransform)
+      }
+      this.dragStartTransform = null
     })
   }
 
@@ -77,6 +98,7 @@ export class TransformController {
 
   detach(): void {
     this.attachedObject = null
+    this.dragStartTransform = null
     this.controls.detach()
   }
 

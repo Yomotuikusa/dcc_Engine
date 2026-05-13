@@ -1,3 +1,7 @@
+import { useRef } from 'react'
+import { getActiveSceneManager } from '@/engine/sceneManagerRegistry'
+import { cloneTransform, TransformCommand, transformsEqual } from '@/history/commands'
+import { useHistoryStore } from '@/store/historyStore'
 import { useSceneStore } from '@/store/sceneStore'
 import type { SceneTransform } from '@/store/types'
 
@@ -6,13 +10,17 @@ interface AxisInputProps {
   disabled: boolean
   'data-testid'?: string
   onChange: (v: number) => void
+  onFocus?: () => void
+  onBlur?: () => void
 }
 
 function AxisInput({
   value,
   disabled,
   'data-testid': testId,
-  onChange
+  onChange,
+  onFocus,
+  onBlur
 }: AxisInputProps): React.JSX.Element {
   return (
     <input
@@ -22,6 +30,8 @@ function AxisInput({
       value={value}
       disabled={disabled}
       data-testid={testId}
+      onFocus={onFocus}
+      onBlur={onBlur}
       onChange={(e) => {
         const v = e.target.valueAsNumber
         if (Number.isFinite(v)) onChange(v)
@@ -40,6 +50,7 @@ export function PropertiesPanel(): React.JSX.Element {
   const rotation = selectedTransform?.rotation ?? [0, 0, 0]
   const scale = selectedTransform?.scale ?? [1, 1, 1]
   const disabled = !selectedId
+  const editSessionRef = useRef<{ selectedId: string; before: SceneTransform } | null>(null)
 
   const commit = (patch: Partial<SceneTransform>): void => {
     if (!selectedId) return
@@ -53,6 +64,34 @@ export function PropertiesPanel(): React.JSX.Element {
       },
       'ui'
     )
+  }
+
+  const handleFocus = (): void => {
+    const state = useSceneStore.getState()
+    if (!state.selectedId || !state.selectedTransform) {
+      editSessionRef.current = null
+      return
+    }
+    editSessionRef.current = {
+      selectedId: state.selectedId,
+      before: cloneTransform(state.selectedTransform)
+    }
+  }
+
+  const handleBlur = (): void => {
+    const session = editSessionRef.current
+    editSessionRef.current = null
+    if (!session) return
+    const state = useSceneStore.getState()
+    const after = state.selectedTransform
+    if (!after) return
+    if (state.selectedId !== session.selectedId) return
+    if (transformsEqual(session.before, after)) return
+    const sceneManager = getActiveSceneManager()
+    if (!sceneManager) return
+    useHistoryStore
+      .getState()
+      .execute(new TransformCommand(session.selectedId, session.before, cloneTransform(after), sceneManager))
   }
 
   return (
@@ -76,18 +115,24 @@ export function PropertiesPanel(): React.JSX.Element {
               value={position[0]}
               disabled={disabled}
               data-testid="position-x"
+              onFocus={handleFocus}
+              onBlur={handleBlur}
               onChange={(v) => commit({ position: [v, position[1], position[2]] })}
             />
             <AxisInput
               value={position[1]}
               disabled={disabled}
               data-testid="position-y"
+              onFocus={handleFocus}
+              onBlur={handleBlur}
               onChange={(v) => commit({ position: [position[0], v, position[2]] })}
             />
             <AxisInput
               value={position[2]}
               disabled={disabled}
               data-testid="position-z"
+              onFocus={handleFocus}
+              onBlur={handleBlur}
               onChange={(v) => commit({ position: [position[0], position[1], v] })}
             />
           </div>
@@ -100,18 +145,24 @@ export function PropertiesPanel(): React.JSX.Element {
               value={rotation[0]}
               disabled={disabled}
               data-testid="rotation-x"
+              onFocus={handleFocus}
+              onBlur={handleBlur}
               onChange={(v) => commit({ rotation: [v, rotation[1], rotation[2]] })}
             />
             <AxisInput
               value={rotation[1]}
               disabled={disabled}
               data-testid="rotation-y"
+              onFocus={handleFocus}
+              onBlur={handleBlur}
               onChange={(v) => commit({ rotation: [rotation[0], v, rotation[2]] })}
             />
             <AxisInput
               value={rotation[2]}
               disabled={disabled}
               data-testid="rotation-z"
+              onFocus={handleFocus}
+              onBlur={handleBlur}
               onChange={(v) => commit({ rotation: [rotation[0], rotation[1], v] })}
             />
           </div>
@@ -124,18 +175,24 @@ export function PropertiesPanel(): React.JSX.Element {
               value={scale[0]}
               disabled={disabled}
               data-testid="scale-x"
+              onFocus={handleFocus}
+              onBlur={handleBlur}
               onChange={(v) => commit({ scale: [v, scale[1], scale[2]] })}
             />
             <AxisInput
               value={scale[1]}
               disabled={disabled}
               data-testid="scale-y"
+              onFocus={handleFocus}
+              onBlur={handleBlur}
               onChange={(v) => commit({ scale: [scale[0], v, scale[2]] })}
             />
             <AxisInput
               value={scale[2]}
               disabled={disabled}
               data-testid="scale-z"
+              onFocus={handleFocus}
+              onBlur={handleBlur}
               onChange={(v) => commit({ scale: [scale[0], scale[1], v] })}
             />
           </div>

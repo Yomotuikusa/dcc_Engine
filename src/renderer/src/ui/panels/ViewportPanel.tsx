@@ -2,7 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { applyTransform, TransformController } from '@/engine/controls/TransformController'
 import { FbxImporter } from '@/engine/loaders/FbxImporter'
 import { SceneManager } from '@/engine/SceneManager'
+import { setActiveSceneManager } from '@/engine/sceneManagerRegistry'
 import { Viewport } from '@/engine/Viewport'
+import { AddObjectCommand, TransformCommand } from '@/history/commands'
+import { useHistoryStore } from '@/store/historyStore'
 import {
   clientPointToNdc,
   isClickWithinMoveThreshold,
@@ -55,26 +58,26 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
       return
     }
     const sequence = importSequenceRef.current++
-    const registerObject = (object: THREE.Object3D, parentId: string | null, path: string): void => {
+    const metas: SceneObjectMeta[] = []
+    const collectMeta = (object: THREE.Object3D, parentId: string | null, path: string): void => {
       const id = `${FBX_ID_PREFIX}-${sequence}-${path}`
-      const meta: SceneObjectMeta = {
+      metas.push({
         id,
         name: objectName(object, `Object-${path}`),
         type: toSceneObjectType(object),
         parentId,
         visible: object.visible
-      }
-
-      sceneManager.addObject(meta, object)
-      useSceneStore.getState().addObject(meta)
+      })
 
       object.children.forEach((child, index) => {
-        registerObject(child, id, `${path}-${index + 1}`)
+        collectMeta(child, id, `${path}-${index + 1}`)
       })
     }
 
-    registerObject(group, null, '1')
-    useSceneStore.getState().setSelected(`fbx-${sequence}-1`)
+    collectMeta(group, null, '1')
+    useHistoryStore.getState().execute(
+      new AddObjectCommand(metas, group, sceneManager, `${FBX_ID_PREFIX}-${sequence}-1`)
+    )
   }
 
   useEffect(() => {
@@ -96,22 +99,29 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
       camera: viewport.camera,
       domElement: viewport.renderer.domElement,
       orbitControls: viewport.controls,
-      onCommitTransform: (target) => {
-        // ギズモ操作完了による commit はエンジン起因として記録し、
-        // selectedTransform subscribe での Object3D への書き戻しを抑制する。
-        useSceneStore.getState().commitTransform(
-          {
-            position: [target.position.x, target.position.y, target.position.z],
-            rotation: [target.rotation.x, target.rotation.y, target.rotation.z],
-            scale: [target.scale.x, target.scale.y, target.scale.z]
-          },
-          'engine'
-        )
+      onCommitTransform: (target, before) => {
+        const after = {
+          position: [target.position.x, target.position.y, target.position.z] as [number, number, number],
+          rotation: [target.rotation.x, target.rotation.y, target.rotation.z] as [number, number, number],
+          scale: [target.scale.x, target.scale.y, target.scale.z] as [number, number, number]
+        }
+        if (!before) {
+          // 開始時スナップショット未取得時は安全に同期のみ行う
+          useSceneStore.getState().commitTransform(after, 'engine')
+          return
+        }
+        const targetId = sceneManager.findIdForObject(target)
+        if (!targetId) {
+          useSceneStore.getState().commitTransform(after, 'engine')
+          return
+        }
+        useHistoryStore.getState().execute(new TransformCommand(targetId, before, after, sceneManager))
       }
     })
     // SceneManager に DI で store と transformController を注入する
     // (transformMode の購読は SceneManager 側で行う)
     const sceneManager = new SceneManager(viewport.scene, useSceneStore, transformController)
+    setActiveSceneManager(sceneManager)
 
     viewportRef.current = viewport
     sceneManagerRef.current = sceneManager
@@ -182,6 +192,7 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
       pointerDownRef.current = null
       viewportRef.current = null
       sceneManagerRef.current = null
+      setActiveSceneManager(null)
       unsubscribeSelected()
       unsubscribeTransform()
       // WebGL コンテキスト消失リスナーの解除 (viewport.dispose の前に実施)
