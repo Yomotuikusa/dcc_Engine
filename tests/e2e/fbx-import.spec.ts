@@ -5,11 +5,10 @@ import { openWebApp } from '../helpers/webAppHelper'
 test('FBXをインポートするとアウトライナー項目が増える', async ({ page }) => {
   await openWebApp(page)
 
+  const before = await page.locator('[data-testid^="outliner-item-"]').count()
   const fixturePath = join(process.cwd(), 'tests/fixtures/samples/test-cube.fbx')
   const fileInput = page.locator('input[type="file"][data-testid="fbx-file-input"]')
   await fileInput.setInputFiles(fixturePath)
-
-  const before = await page.locator('[data-testid^="outliner-item-"]').count()
 
   await expect
     .poll(async () => page.locator('[data-testid^="outliner-item-"]').count())
