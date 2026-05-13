@@ -1,4 +1,4 @@
-import { render, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as THREE from 'three'
 import { useSceneStore } from '@/store/sceneStore'
@@ -40,6 +40,9 @@ vi.mock('@/engine/SceneManager', () => ({
   }
 }))
 
+// Viewport モックの最後に生成されたインスタンスをテストから参照するための保持領域
+const viewportInstances: Array<{ renderer: { domElement: HTMLCanvasElement } }> = []
+
 vi.mock('@/engine/Viewport', () => ({
   Viewport: class {
     scene = new THREE.Scene()
@@ -50,6 +53,7 @@ vi.mock('@/engine/Viewport', () => ({
       const cube = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial())
       cube.name = 'Cube'
       this.scene.add(cube)
+      viewportInstances.push(this)
     }
     setOnRender = vi.fn()
     dispose = vi.fn()
@@ -65,6 +69,7 @@ vi.mock('@/engine/loaders/FbxImporter', () => ({
 describe('ViewportPanel', () => {
   beforeEach(() => {
     parseMock.mockReset()
+    viewportInstances.length = 0
     useSceneStore.setState({
       objects: {},
       rootIds: [],
@@ -83,6 +88,26 @@ describe('ViewportPanel', () => {
 
     await waitFor(() => {
       expect(parseMock).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  it('webglcontextlostイベント発火時にコンテキスト消失バナーを表示する', async () => {
+    render(<ViewportPanel />)
+
+    // ViewportPanel の useEffect 内で Viewport が生成されインスタンスが push される。
+    await waitFor(() => {
+      expect(viewportInstances.length).toBeGreaterThan(0)
+    })
+
+    const canvas = viewportInstances[0].renderer.domElement
+    // React の状態更新を確実に flush するため act() で囲む。
+    act(() => {
+      canvas.dispatchEvent(new Event('webglcontextlost', { cancelable: true }))
+    })
+
+    await waitFor(() => {
+      const banner = screen.getByTestId('webgl-context-lost')
+      expect(banner.textContent).toContain('WebGL コンテキストが失われました')
     })
   })
 })

@@ -48,4 +48,3 @@ npm run preview
 
 `build command: npm run build`、`publish directory: dist` を指定してください。  
 この場合は `base: '/'` 前提のため、`VITE_BASE_PATH` は未設定のままで動作します。
-```

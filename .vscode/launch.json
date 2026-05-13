@@ -1,36 +1,32 @@
 {
   "version": "0.2.0",
   "configurations": [
+    // Vite 開発サーバーを起動する構成（Web アプリのホスティング担当）
     {
-      "name": "Debug Main Process",
+      "name": "Start Vite Dev Server",
       "type": "node",
       "request": "launch",
       "cwd": "${workspaceRoot}",
-      "runtimeExecutable": "${workspaceRoot}/node_modules/.bin/electron-vite",
+      "runtimeExecutable": "${workspaceRoot}/node_modules/.bin/vite",
       "windows": {
-        "runtimeExecutable": "${workspaceRoot}/node_modules/.bin/electron-vite.cmd"
+        "runtimeExecutable": "${workspaceRoot}/node_modules/.bin/vite.cmd"
       },
-      "runtimeArgs": ["--sourcemap"],
-      "env": {
-        "REMOTE_DEBUGGING_PORT": "9222"
-      }
+      "console": "integratedTerminal"
     },
+    // Chrome を起動して Vite Dev Server に接続する構成（フロントエンドデバッグ担当）
     {
-      "name": "Debug Renderer Process",
-      "port": 9222,
-      "request": "attach",
+      "name": "Launch Chrome",
       "type": "chrome",
-      "webRoot": "${workspaceFolder}/src/renderer",
-      "timeout": 60000,
-      "presentation": {
-        "hidden": true
-      }
+      "request": "launch",
+      "url": "http://localhost:5173",
+      "webRoot": "${workspaceFolder}/src/renderer"
     }
   ],
   "compounds": [
+    // Vite サーバー起動と Chrome 起動を同時に行う複合構成
     {
-      "name": "Debug All",
-      "configurations": ["Debug Main Process", "Debug Renderer Process"],
+      "name": "Debug Web App",
+      "configurations": ["Start Vite Dev Server", "Launch Chrome"],
       "presentation": {
         "order": 1
       }

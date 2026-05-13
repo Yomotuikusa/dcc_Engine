@@ -12,8 +12,3 @@ updates:
       - needs-review
     allow:
       - dependency-type: all
-    # 個人スコープ依存 (electron-vite) は個別グループ化して watch する
-    groups:
-      electron-vite:
-        patterns:
-          - electron-vite

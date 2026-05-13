@@ -1,5 +1,6 @@
 {
   "include": ["src/renderer/src/env.d.ts", "src/renderer/src/**/*", "src/renderer/src/**/*.tsx"],
+  "exclude": ["src/renderer/src/**/*.test.ts", "src/renderer/src/**/*.test.tsx"],
   "compilerOptions": {
     "composite": true,
     "target": "ES2022",
@@ -19,6 +20,6 @@
       "@/*": ["src/renderer/src/*"],
       "@renderer/*": ["src/renderer/src/*"]
     },
-    "types": ["vite/client", "node"]
+    "types": ["vite/client"]
   }
 }

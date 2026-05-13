@@ -16,6 +16,8 @@ import * as THREE from 'three'
 
 const DEFAULT_CUBE_ID = 'default-cube'
 const FBX_ID_PREFIX = 'fbx'
+// FBX 読み込み時に許容する最大ファイルサイズ (100MB)
+const MAX_FBX_FILE_SIZE = 100 * 1024 * 1024
 
 interface ViewportPanelProps {
   pendingFile?: File | null
@@ -42,6 +44,8 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
   const importSequenceRef = useRef(1)
   const raycasterRef = useRef(new SelectionRaycaster())
   const [importError, setImportError] = useState<string | null>(null)
+  // WebGL コンテキスト消失状態。true の場合はユーザーへリロードを促すバナーを表示する。
+  const [contextLost, setContextLost] = useState<boolean>(false)
   const setTransformMode = useSceneStore((state) => state.setTransformMode)
   const keybinds = useKeybinds(setTransformMode)
 
@@ -80,6 +84,13 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
     }
 
     const viewport = new Viewport(container)
+    // WebGL コンテキスト消失イベントを購読し、ユーザーへの通知用ステートを更新する。
+    // event.preventDefault() を呼ぶことで、将来的な webglcontextrestored の発火を可能にする。
+    const handleContextLost = (event: Event): void => {
+      event.preventDefault()
+      setContextLost(true)
+    }
+    viewport.renderer.domElement.addEventListener('webglcontextlost', handleContextLost)
     const transformController = new TransformController({
       scene: viewport.scene,
       camera: viewport.camera,
@@ -173,6 +184,8 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
       sceneManagerRef.current = null
       unsubscribeSelected()
       unsubscribeTransform()
+      // WebGL コンテキスト消失リスナーの解除 (viewport.dispose の前に実施)
+      viewport.renderer.domElement.removeEventListener('webglcontextlost', handleContextLost)
       useSceneStore.getState().removeObject(DEFAULT_CUBE_ID)
       useSceneStore.getState().commitTransform(null, 'engine')
       transformController.dispose()
@@ -192,14 +205,21 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
 
     const runImportFromFile = async (): Promise<void> => {
       setImportError(null)
+      // 大きすぎるファイルは arrayBuffer 化する前に弾く (メモリ枯渇とフリーズの予防)
+      if (pendingFile.size > MAX_FBX_FILE_SIZE) {
+        setImportError('ファイルサイズが上限 (100MB) を超えています')
+        return
+      }
       const buffer = await pendingFile.arrayBuffer()
       const group = fbxImporterRef.current.parse(buffer)
       registerImportedGroup(group)
     }
 
     runImportFromFile().catch((error) => {
+      // FbxImporter 側で既に「FBXの読み込みに失敗しました: ...」を付与しているため、
+      // ここでは prefix を二重に付けず、err.message をそのまま反映する。
       const message = error instanceof Error ? error.message : '不明なエラー'
-      setImportError(`FBXの読み込みに失敗しました: ${message}`)
+      setImportError(message)
     })
   }, [pendingFile])
 
@@ -262,6 +282,14 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
           data-testid="fbx-import-error"
         >
           {importError}
+        </p>
+      ) : null}
+      {contextLost ? (
+        <p
+          className="pointer-events-none absolute bottom-2 left-2 right-2 rounded bg-red-900/80 px-3 py-2 text-sm text-red-100"
+          data-testid="webgl-context-lost"
+        >
+          WebGL コンテキストが失われました。ページをリロードしてください。
         </p>
       ) : null}
     </section>

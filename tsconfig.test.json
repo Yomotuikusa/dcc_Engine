@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.web.json",
+  "compilerOptions": {
+    "composite": true,
+    "types": ["vite/client", "node", "vitest/globals"]
+  },
+  "include": ["src/**/*.test.ts", "src/**/*.test.tsx", "tests/**/*.ts"]
+}
