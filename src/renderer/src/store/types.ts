@@ -1,5 +1,6 @@
 export type SceneObjectType = 'mesh' | 'group' | 'light' | 'camera'
 export type TransformMode = 'translate' | 'rotate' | 'scale'
+export type EditorMode = 'object' | 'edit'
 
 export interface SceneObjectMeta {
   id: string
@@ -14,4 +15,3 @@ export interface SceneTransform {
   rotation: [number, number, number]
   scale: [number, number, number]
 }
-

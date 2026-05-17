@@ -4,6 +4,10 @@ exports[`FbxImporter > import 後の store 状態をスナップショット化�
 {
   "addObject": [Function],
   "commitTransform": [Function],
+  "editTargetId": null,
+  "editorMode": "object",
+  "enterEditMode": [Function],
+  "exitEditMode": [Function],
   "lastCommitSource": null,
   "objects": {
     "fbx-test-1": {
@@ -27,7 +31,10 @@ exports[`FbxImporter > import 後の store 状態をスナップショット化�
   ],
   "selectedId": null,
   "selectedTransform": null,
+  "selectedVertices": [],
+  "setEditorMode": [Function],
   "setSelected": [Function],
+  "setSelectedVertices": [Function],
   "setTransformMode": [Function],
   "transformMode": "translate",
 }

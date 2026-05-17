@@ -4,6 +4,10 @@ exports[`sceneStore > addObject で objects と rootIds を更新する 1`] = `
 {
   "addObject": [Function],
   "commitTransform": [Function],
+  "editTargetId": null,
+  "editorMode": "object",
+  "enterEditMode": [Function],
+  "exitEditMode": [Function],
   "lastCommitSource": null,
   "objects": {
     "root": {
@@ -20,7 +24,10 @@ exports[`sceneStore > addObject で objects と rootIds を更新する 1`] = `
   ],
   "selectedId": null,
   "selectedTransform": null,
+  "selectedVertices": [],
+  "setEditorMode": [Function],
   "setSelected": [Function],
+  "setSelectedVertices": [Function],
   "setTransformMode": [Function],
   "transformMode": "translate",
 }
@@ -30,6 +37,10 @@ exports[`sceneStore > addObject 後に setSelected(id) で選択状態を更新�
 {
   "addObject": [Function],
   "commitTransform": [Function],
+  "editTargetId": null,
+  "editorMode": "object",
+  "enterEditMode": [Function],
+  "exitEditMode": [Function],
   "lastCommitSource": null,
   "objects": {
     "root": {
@@ -46,7 +57,10 @@ exports[`sceneStore > addObject 後に setSelected(id) で選択状態を更新�
   ],
   "selectedId": "root",
   "selectedTransform": null,
+  "selectedVertices": [],
+  "setEditorMode": [Function],
   "setSelected": [Function],
+  "setSelectedVertices": [Function],
   "setTransformMode": [Function],
   "transformMode": "translate",
 }
@@ -56,6 +70,10 @@ exports[`sceneStore > commitTransform は selectedTransform のみ更新する 1
 {
   "addObject": [Function],
   "commitTransform": [Function],
+  "editTargetId": null,
+  "editorMode": "object",
+  "enterEditMode": [Function],
+  "exitEditMode": [Function],
   "lastCommitSource": "ui",
   "objects": {
     "root": {
@@ -88,7 +106,10 @@ exports[`sceneStore > commitTransform は selectedTransform のみ更新する 1
       1,
     ],
   },
+  "selectedVertices": [],
+  "setEditorMode": [Function],
   "setSelected": [Function],
+  "setSelectedVertices": [Function],
   "setTransformMode": [Function],
   "transformMode": "translate",
 }
@@ -98,13 +119,20 @@ exports[`sceneStore > removeObject で子要素を含めて削除する 1`] = `
 {
   "addObject": [Function],
   "commitTransform": [Function],
+  "editTargetId": null,
+  "editorMode": "object",
+  "enterEditMode": [Function],
+  "exitEditMode": [Function],
   "lastCommitSource": null,
   "objects": {},
   "removeObject": [Function],
   "rootIds": [],
   "selectedId": null,
   "selectedTransform": null,
+  "selectedVertices": [],
+  "setEditorMode": [Function],
   "setSelected": [Function],
+  "setSelectedVertices": [Function],
   "setTransformMode": [Function],
   "transformMode": "translate",
 }
@@ -114,6 +142,10 @@ exports[`sceneStore > setSelected(null) で選択解除する 1`] = `
 {
   "addObject": [Function],
   "commitTransform": [Function],
+  "editTargetId": null,
+  "editorMode": "object",
+  "enterEditMode": [Function],
+  "exitEditMode": [Function],
   "lastCommitSource": null,
   "objects": {
     "root": {
@@ -130,7 +162,10 @@ exports[`sceneStore > setSelected(null) で選択解除する 1`] = `
   ],
   "selectedId": null,
   "selectedTransform": null,
+  "selectedVertices": [],
+  "setEditorMode": [Function],
   "setSelected": [Function],
+  "setSelectedVertices": [Function],
   "setTransformMode": [Function],
   "transformMode": "translate",
 }
@@ -140,13 +175,20 @@ exports[`sceneStore > setTransformMode で値を更新する 1`] = `
 {
   "addObject": [Function],
   "commitTransform": [Function],
+  "editTargetId": null,
+  "editorMode": "object",
+  "enterEditMode": [Function],
+  "exitEditMode": [Function],
   "lastCommitSource": null,
   "objects": {},
   "removeObject": [Function],
   "rootIds": [],
   "selectedId": null,
   "selectedTransform": null,
+  "selectedVertices": [],
+  "setEditorMode": [Function],
   "setSelected": [Function],
+  "setSelectedVertices": [Function],
   "setTransformMode": [Function],
   "transformMode": "rotate",
 }
@@ -156,13 +198,20 @@ exports[`sceneStore > 初期状態のスナップショット 1`] = `
 {
   "addObject": [Function],
   "commitTransform": [Function],
+  "editTargetId": null,
+  "editorMode": "object",
+  "enterEditMode": [Function],
+  "exitEditMode": [Function],
   "lastCommitSource": null,
   "objects": {},
   "removeObject": [Function],
   "rootIds": [],
   "selectedId": null,
   "selectedTransform": null,
+  "selectedVertices": [],
+  "setEditorMode": [Function],
   "setSelected": [Function],
+  "setSelectedVertices": [Function],
   "setTransformMode": [Function],
   "transformMode": "translate",
 }
