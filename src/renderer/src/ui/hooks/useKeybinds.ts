@@ -7,9 +7,18 @@ interface UseKeybindsResult {
   onKeyDown: (event: React.KeyboardEvent<HTMLElement>) => void
 }
 
-export function useKeybinds(onSetMode: (mode: TransformMode) => void): UseKeybindsResult {
+export function useKeybinds(
+  onSetMode: (mode: TransformMode) => void,
+  onToggleEditorMode: () => void = () => {}
+): UseKeybindsResult {
   const onKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLElement>) => {
+      if (event.key === 'Tab') {
+        event.preventDefault()
+        onToggleEditorMode()
+        return
+      }
+
       const mode = mapKeyToTransformMode(event.key)
       if (!mode) {
         return
@@ -18,7 +27,7 @@ export function useKeybinds(onSetMode: (mode: TransformMode) => void): UseKeybin
       event.preventDefault()
       onSetMode(mode)
     },
-    [onSetMode]
+    [onSetMode, onToggleEditorMode]
   )
 
   return {

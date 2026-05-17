@@ -10,6 +10,7 @@ import type { SceneObjectMeta, TransformMode } from '@/store/types'
 export interface SceneManagerStoreState {
   selectedId: string | null
   transformMode: TransformMode
+  editorMode?: 'object' | 'edit'
 }
 
 export interface SceneManagerStore<S extends SceneManagerStoreState = SceneManagerStoreState> {
@@ -34,6 +35,7 @@ export class SceneManager {
   private readonly unsubscribes: Array<() => void> = []
   private selectionHelper: THREE.BoxHelper | null = null
   private selectedId: string | null = null
+  private editorMode: 'object' | 'edit' = 'object'
 
   constructor(
     scene: THREE.Scene,
@@ -46,6 +48,7 @@ export class SceneManager {
 
     const initialState = store.getState()
     this.selectedId = initialState.selectedId
+    this.editorMode = initialState.editorMode ?? 'object'
 
     // selectedId の購読: 選択ヘルパの再構築をトリガする
     this.unsubscribes.push(
@@ -53,6 +56,16 @@ export class SceneManager {
         (state) => state.selectedId,
         (selectedId) => {
           this.selectedId = selectedId
+          this.syncSelectionHelper()
+        }
+      )
+    )
+
+    this.unsubscribes.push(
+      this.store.subscribe(
+        (state) => state.editorMode ?? 'object',
+        (editorMode) => {
+          this.editorMode = editorMode
           this.syncSelectionHelper()
         }
       )
@@ -148,6 +161,10 @@ export class SceneManager {
 
   private syncSelectionHelper(): void {
     this.clearSelectionHelper()
+
+    if (this.editorMode === 'edit') {
+      return
+    }
 
     if (!this.selectedId) {
       return

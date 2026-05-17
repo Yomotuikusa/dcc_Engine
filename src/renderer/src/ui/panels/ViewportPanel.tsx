@@ -4,6 +4,7 @@ import { FbxImporter } from '@/engine/loaders/FbxImporter'
 import { SceneManager } from '@/engine/SceneManager'
 import { setActiveSceneManager } from '@/engine/sceneManagerRegistry'
 import { Viewport } from '@/engine/Viewport'
+import { MeshEditController } from '@/engine/edit/MeshEditController'
 import { AddObjectCommand, TransformCommand } from '@/history/commands'
 import { useHistoryStore } from '@/store/historyStore'
 import {
@@ -46,11 +47,32 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
   const fbxImporterRef = useRef(new FbxImporter())
   const importSequenceRef = useRef(1)
   const raycasterRef = useRef(new SelectionRaycaster())
+  const meshEditControllerRef = useRef<MeshEditController | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
   // WebGL コンテキスト消失状態。true の場合はユーザーへリロードを促すバナーを表示する。
   const [contextLost, setContextLost] = useState<boolean>(false)
   const setTransformMode = useSceneStore((state) => state.setTransformMode)
-  const keybinds = useKeybinds(setTransformMode)
+  const onToggleEditorMode = (): void => {
+    const sceneManager = sceneManagerRef.current
+    if (!sceneManager) {
+      return
+    }
+    const state = useSceneStore.getState()
+    if (state.editorMode === 'edit') {
+      state.exitEditMode()
+      return
+    }
+    const selectedId = state.selectedId
+    if (!selectedId) {
+      return
+    }
+    const object = sceneManager.getObjectById(selectedId)
+    if (!(object instanceof THREE.Mesh)) {
+      return
+    }
+    state.enterEditMode(selectedId)
+  }
+  const keybinds = useKeybinds(setTransformMode, onToggleEditorMode)
 
   const registerImportedGroup = (group: THREE.Group): void => {
     const sceneManager = sceneManagerRef.current
@@ -121,10 +143,12 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
     // SceneManager に DI で store と transformController を注入する
     // (transformMode の購読は SceneManager 側で行う)
     const sceneManager = new SceneManager(viewport.scene, useSceneStore, transformController)
+    const meshEditController = new MeshEditController()
     setActiveSceneManager(sceneManager)
 
     viewportRef.current = viewport
     sceneManagerRef.current = sceneManager
+    meshEditControllerRef.current = meshEditController
     const cube = viewport.scene.getObjectByName('Cube')
     if (cube) {
       const cubeMeta: SceneObjectMeta = {
@@ -147,27 +171,57 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
       )
     }
 
-    const unsubscribeSelected = useSceneStore.subscribe(
-      (state) => state.selectedId,
-      (selectedId) => {
-        const selectedObject = selectedId ? sceneManager.getObjectById(selectedId) : undefined
-        if (selectedObject) {
-          transformController.attach(selectedObject)
-          // 新規選択時の初期同期は Object3D → store の方向なので 'engine' とする。
-          useSceneStore.getState().commitTransform(
-            {
-              position: [selectedObject.position.x, selectedObject.position.y, selectedObject.position.z],
-              rotation: [selectedObject.rotation.x, selectedObject.rotation.y, selectedObject.rotation.z],
-              scale: [selectedObject.scale.x, selectedObject.scale.y, selectedObject.scale.z]
-            },
-            'engine'
-          )
-        } else {
-          transformController.detach()
-          useSceneStore.getState().commitTransform(null, 'engine')
-        }
+    const syncObjectTransformGizmo = (): void => {
+      const state = useSceneStore.getState()
+      if (state.editorMode === 'edit') {
+        transformController.detach()
+        useSceneStore.getState().commitTransform(null, 'engine')
+        return
       }
-    )
+
+      const selectedObject = state.selectedId ? sceneManager.getObjectById(state.selectedId) : undefined
+      if (!selectedObject) {
+        transformController.detach()
+        useSceneStore.getState().commitTransform(null, 'engine')
+        return
+      }
+
+      transformController.attach(selectedObject)
+      // 新規選択時の初期同期は Object3D → store の方向なので 'engine' とする。
+      useSceneStore.getState().commitTransform(
+        {
+          position: [selectedObject.position.x, selectedObject.position.y, selectedObject.position.z],
+          rotation: [selectedObject.rotation.x, selectedObject.rotation.y, selectedObject.rotation.z],
+          scale: [selectedObject.scale.x, selectedObject.scale.y, selectedObject.scale.z]
+        },
+        'engine'
+      )
+    }
+    syncObjectTransformGizmo()
+    const unsubscribeSelected = useSceneStore.subscribe((state) => state.selectedId, () => {
+      syncObjectTransformGizmo()
+    })
+    const unsubscribeEditorMode = useSceneStore.subscribe((state) => state.editorMode, (editorMode) => {
+      const selectedId = useSceneStore.getState().selectedId
+      if (editorMode === 'edit') {
+        if (!selectedId) {
+          meshEditController.exit()
+          transformController.detach()
+          return
+        }
+        const object = sceneManager.getObjectById(selectedId)
+        if (object instanceof THREE.Mesh) {
+          meshEditController.enter(object)
+        } else {
+          meshEditController.exit()
+        }
+        transformController.detach()
+        return
+      }
+
+      meshEditController.exit()
+      syncObjectTransformGizmo()
+    })
     viewport.setOnRender(() => sceneManager.updateSelectionHelper())
 
     // パネル編集による transform 変化を Object3D に反映する。
@@ -192,14 +246,17 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
       pointerDownRef.current = null
       viewportRef.current = null
       sceneManagerRef.current = null
+      meshEditControllerRef.current = null
       setActiveSceneManager(null)
       unsubscribeSelected()
+      unsubscribeEditorMode()
       unsubscribeTransform()
       // WebGL コンテキスト消失リスナーの解除 (viewport.dispose の前に実施)
       viewport.renderer.domElement.removeEventListener('webglcontextlost', handleContextLost)
       useSceneStore.getState().removeObject(DEFAULT_CUBE_ID)
       useSceneStore.getState().commitTransform(null, 'engine')
       transformController.dispose()
+      meshEditController.dispose()
       sceneManager.dispose()
       viewport.dispose()
     }
