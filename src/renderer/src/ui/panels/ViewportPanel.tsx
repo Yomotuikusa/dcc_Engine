@@ -22,6 +22,7 @@ const DEFAULT_CUBE_ID = 'default-cube'
 const FBX_ID_PREFIX = 'fbx'
 // FBX 読み込み時に許容する最大ファイルサイズ (100MB)
 const MAX_FBX_FILE_SIZE = 100 * 1024 * 1024
+const EDIT_POINTS_THRESHOLD = 0.08
 
 interface ViewportPanelProps {
   pendingFile?: File | null
@@ -222,6 +223,12 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
       meshEditController.exit()
       syncObjectTransformGizmo()
     })
+    const unsubscribeSelectedVertices = useSceneStore.subscribe(
+      (state) => state.selectedVertices,
+      (selectedVertices) => {
+        meshEditController.setSelectedVertices(selectedVertices)
+      }
+    )
     viewport.setOnRender(() => sceneManager.updateSelectionHelper())
 
     // パネル編集による transform 変化を Object3D に反映する。
@@ -250,6 +257,7 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
       setActiveSceneManager(null)
       unsubscribeSelected()
       unsubscribeEditorMode()
+      unsubscribeSelectedVertices()
       unsubscribeTransform()
       // WebGL コンテキスト消失リスナーの解除 (viewport.dispose の前に実施)
       viewport.renderer.domElement.removeEventListener('webglcontextlost', handleContextLost)
@@ -323,11 +331,36 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
       { x: event.clientX, y: event.clientY },
       container.getBoundingClientRect()
     )
-    const picked = raycasterRef.current.pick(
-      ndc,
-      viewport.camera,
-      sceneManager.getSelectableObjects()
-    )
+    const state = useSceneStore.getState()
+    if (state.editorMode === 'edit') {
+      const points = meshEditControllerRef.current?.getPointsObject()
+      if (!points) {
+        return
+      }
+      const [intersection] = raycasterRef.current.intersectPoints(
+        ndc,
+        viewport.camera,
+        points,
+        EDIT_POINTS_THRESHOLD
+      )
+      if (!intersection) {
+        useSceneStore.getState().setSelectedVertices([])
+        return
+      }
+
+      const pickedIndices = meshEditControllerRef.current?.resolveVertexIndices(intersection) ?? []
+      if (pickedIndices.length === 0) {
+        return
+      }
+      if (event.shiftKey) {
+        useSceneStore.getState().setSelectedVertices([...state.selectedVertices, ...pickedIndices])
+        return
+      }
+      useSceneStore.getState().setSelectedVertices(pickedIndices)
+      return
+    }
+
+    const picked = raycasterRef.current.pick(ndc, viewport.camera, sceneManager.getSelectableObjects())
     const selectedId = picked ? sceneManager.findIdForObject(picked) : null
     useSceneStore.getState().setSelected(selectedId)
   }

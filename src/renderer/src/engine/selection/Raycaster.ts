@@ -50,4 +50,18 @@ export class SelectionRaycaster {
     const [intersection] = this.intersect(ndc, camera, objects, recursive)
     return intersection?.object ?? null
   }
+
+  intersectPoints(
+    ndc: THREE.Vector2,
+    camera: THREE.Camera,
+    points: THREE.Points,
+    threshold: number
+  ): THREE.Intersection[] {
+    this.raycaster.setFromCamera(ndc, camera)
+    const previousThreshold = this.raycaster.params.Points.threshold
+    this.raycaster.params.Points.threshold = threshold
+    const intersections = this.raycaster.intersectObject(points, false)
+    this.raycaster.params.Points.threshold = previousThreshold
+    return intersections
+  }
 }

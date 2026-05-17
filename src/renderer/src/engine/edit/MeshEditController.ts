@@ -2,6 +2,7 @@ import * as THREE from 'three'
 
 const WELD_EPSILON = 1e-5
 const DEFAULT_VERTEX_COLOR = new THREE.Color(0x4ea1ff)
+const SELECTED_VERTEX_COLOR = new THREE.Color(0xffa000)
 
 function quantize(value: number): number {
   return Math.round(value / WELD_EPSILON)
@@ -74,6 +75,49 @@ export class MeshEditController {
 
   getPointsObject(): THREE.Points | null {
     return this.pointsObject
+  }
+
+  resolveVertexIndices(intersection: THREE.Intersection): number[] {
+    if (typeof intersection.index !== 'number') {
+      return []
+    }
+
+    const groupKey = this.indexToGroupKey.get(intersection.index)
+    if (!groupKey) {
+      return [intersection.index]
+    }
+
+    const group = this.weldGroups.get(groupKey)
+    if (!group) {
+      return [intersection.index]
+    }
+
+    return [...group]
+  }
+
+  setSelectedVertices(indices: number[]): void {
+    const colorAttribute = this.pointsGeometry?.getAttribute('color')
+    if (!(colorAttribute instanceof THREE.BufferAttribute)) {
+      return
+    }
+
+    for (let index = 0; index < colorAttribute.count; index += 1) {
+      colorAttribute.setXYZ(index, DEFAULT_VERTEX_COLOR.r, DEFAULT_VERTEX_COLOR.g, DEFAULT_VERTEX_COLOR.b)
+    }
+
+    for (const index of indices) {
+      if (index < 0 || index >= colorAttribute.count) {
+        continue
+      }
+      colorAttribute.setXYZ(
+        index,
+        SELECTED_VERTEX_COLOR.r,
+        SELECTED_VERTEX_COLOR.g,
+        SELECTED_VERTEX_COLOR.b
+      )
+    }
+
+    colorAttribute.needsUpdate = true
   }
 
   dispose(): void {
