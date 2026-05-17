@@ -5,7 +5,7 @@ import { SceneManager } from '@/engine/SceneManager'
 import { setActiveSceneManager } from '@/engine/sceneManagerRegistry'
 import { Viewport } from '@/engine/Viewport'
 import { MeshEditController } from '@/engine/edit/MeshEditController'
-import { AddObjectCommand, TransformCommand } from '@/history/commands'
+import { AddObjectCommand, TransformCommand, VertexEditCommand } from '@/history/commands'
 import { useHistoryStore } from '@/store/historyStore'
 import {
   clientPointToNdc,
@@ -49,6 +49,10 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
   const importSequenceRef = useRef(1)
   const raycasterRef = useRef(new SelectionRaycaster())
   const meshEditControllerRef = useRef<MeshEditController | null>(null)
+  const vertexProxyRef = useRef<THREE.Object3D | null>(null)
+  const vertexDragStartWorldRef = useRef<THREE.Vector3 | null>(null)
+  const vertexDragBeforeRef = useRef<Float32Array | null>(null)
+  const vertexDragIndicesRef = useRef<number[]>([])
   const [importError, setImportError] = useState<string | null>(null)
   // WebGL コンテキスト消失状態。true の場合はユーザーへリロードを促すバナーを表示する。
   const [contextLost, setContextLost] = useState<boolean>(false)
@@ -117,12 +121,47 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
       setContextLost(true)
     }
     viewport.renderer.domElement.addEventListener('webglcontextlost', handleContextLost)
+    const vertexProxy = new THREE.Object3D()
+    vertexProxy.visible = false
+    viewport.scene.add(vertexProxy)
     const transformController = new TransformController({
       scene: viewport.scene,
       camera: viewport.camera,
       domElement: viewport.renderer.domElement,
       orbitControls: viewport.controls,
       onCommitTransform: (target, before) => {
+        const state = useSceneStore.getState()
+        if (state.editorMode === 'edit' && target === vertexProxy) {
+          const sceneManagerCurrent = sceneManagerRef.current
+          const beforePositions = vertexDragBeforeRef.current
+          const indices = [...vertexDragIndicesRef.current]
+          const targetId = state.editTargetId
+          vertexDragStartWorldRef.current = null
+          vertexDragBeforeRef.current = null
+          vertexDragIndicesRef.current = []
+          if (!sceneManagerCurrent || !targetId || !beforePositions || indices.length === 0) {
+            return
+          }
+          const afterPositions = meshEditControllerRef.current?.snapshotPositions(indices) ?? new Float32Array(0)
+          if (afterPositions.length !== beforePositions.length) {
+            return
+          }
+          let changed = false
+          for (let i = 0; i < afterPositions.length; i += 1) {
+            if (afterPositions[i] !== beforePositions[i]) {
+              changed = true
+              break
+            }
+          }
+          if (!changed) {
+            return
+          }
+          useHistoryStore
+            .getState()
+            .execute(new VertexEditCommand(targetId, indices, beforePositions, afterPositions, sceneManagerCurrent))
+          return
+        }
+
         const after = {
           position: [target.position.x, target.position.y, target.position.z] as [number, number, number],
           rotation: [target.rotation.x, target.rotation.y, target.rotation.z] as [number, number, number],
@@ -139,6 +178,33 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
           return
         }
         useHistoryStore.getState().execute(new TransformCommand(targetId, before, after, sceneManager))
+      },
+      onObjectChange: (target) => {
+        const state = useSceneStore.getState()
+        if (state.editorMode !== 'edit' || target !== vertexProxy) {
+          return
+        }
+        const meshEditController = meshEditControllerRef.current
+        if (!meshEditController) {
+          return
+        }
+        const indices = [...state.selectedVertices]
+        if (indices.length === 0) {
+          return
+        }
+        if (!vertexDragStartWorldRef.current) {
+          vertexDragStartWorldRef.current = target.position.clone()
+          vertexDragBeforeRef.current = meshEditController.snapshotPositions(indices)
+          vertexDragIndicesRef.current = indices
+        }
+        const start = vertexDragStartWorldRef.current
+        const beforePositions = vertexDragBeforeRef.current
+        if (!start || !beforePositions) {
+          return
+        }
+        meshEditController.applyPositions(indices, beforePositions)
+        const worldDelta = target.position.clone().sub(start)
+        meshEditController.applyWorldDeltaPreview(indices, worldDelta)
       }
     })
     // SceneManager に DI で store と transformController を注入する
@@ -150,6 +216,7 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
     viewportRef.current = viewport
     sceneManagerRef.current = sceneManager
     meshEditControllerRef.current = meshEditController
+    vertexProxyRef.current = vertexProxy
     const cube = viewport.scene.getObjectByName('Cube')
     if (cube) {
       const cubeMeta: SceneObjectMeta = {
@@ -198,13 +265,34 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
         'engine'
       )
     }
+    const syncVertexTransformGizmo = (): void => {
+      const state = useSceneStore.getState()
+      if (state.editorMode !== 'edit') {
+        return
+      }
+      const meshEditController = meshEditControllerRef.current
+      if (!meshEditController?.isActive()) {
+        transformController.detach()
+        return
+      }
+      const centroid = meshEditController.getSelectionCentroidWorld(state.selectedVertices)
+      if (!centroid) {
+        transformController.detach()
+        return
+      }
+      vertexProxy.position.copy(centroid)
+      vertexProxy.rotation.set(0, 0, 0)
+      vertexProxy.scale.set(1, 1, 1)
+      transformController.setMode('translate')
+      transformController.attach(vertexProxy)
+    }
     syncObjectTransformGizmo()
     const unsubscribeSelected = useSceneStore.subscribe((state) => state.selectedId, () => {
       syncObjectTransformGizmo()
     })
     const unsubscribeEditorMode = useSceneStore.subscribe((state) => state.editorMode, (editorMode) => {
       const selectedId = useSceneStore.getState().selectedId
-      if (editorMode === 'edit') {
+        if (editorMode === 'edit') {
         if (!selectedId) {
           meshEditController.exit()
           transformController.detach()
@@ -217,16 +305,22 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
           meshEditController.exit()
         }
         transformController.detach()
+        transformController.setMode('translate')
+        syncVertexTransformGizmo()
         return
       }
 
       meshEditController.exit()
+      vertexDragStartWorldRef.current = null
+      vertexDragBeforeRef.current = null
+      vertexDragIndicesRef.current = []
       syncObjectTransformGizmo()
     })
     const unsubscribeSelectedVertices = useSceneStore.subscribe(
       (state) => state.selectedVertices,
       (selectedVertices) => {
         meshEditController.setSelectedVertices(selectedVertices)
+        syncVertexTransformGizmo()
       }
     )
     viewport.setOnRender(() => sceneManager.updateSelectionHelper())
@@ -254,6 +348,10 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
       viewportRef.current = null
       sceneManagerRef.current = null
       meshEditControllerRef.current = null
+      vertexProxyRef.current = null
+      vertexDragStartWorldRef.current = null
+      vertexDragBeforeRef.current = null
+      vertexDragIndicesRef.current = []
       setActiveSceneManager(null)
       unsubscribeSelected()
       unsubscribeEditorMode()
@@ -264,6 +362,7 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
       useSceneStore.getState().removeObject(DEFAULT_CUBE_ID)
       useSceneStore.getState().commitTransform(null, 'engine')
       transformController.dispose()
+      vertexProxy.parent?.remove(vertexProxy)
       meshEditController.dispose()
       sceneManager.dispose()
       viewport.dispose()
@@ -365,6 +464,21 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
     useSceneStore.getState().setSelected(selectedId)
   }
 
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLElement>): void => {
+    if (event.key !== 'Tab') {
+      const state = useSceneStore.getState()
+      if (state.editorMode === 'edit') {
+        const mode = event.key.toLowerCase()
+        if (mode === 'w' || mode === 'e' || mode === 'r') {
+          event.preventDefault()
+          useSceneStore.getState().setTransformMode('translate')
+          return
+        }
+      }
+    }
+    keybinds.onKeyDown(event)
+  }
+
   return (
     <section
       className="relative h-full min-h-0 min-w-0 overflow-hidden bg-neutral-950"
@@ -374,7 +488,7 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       tabIndex={keybinds.tabIndex}
-      onKeyDown={keybinds.onKeyDown}
+      onKeyDown={handleKeyDown}
     >
       <div ref={containerRef} className="absolute inset-0" />
       {importError ? (

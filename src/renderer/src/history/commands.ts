@@ -4,7 +4,7 @@ import { SceneManager } from '@/engine/SceneManager'
 import { useSceneStore } from '@/store/sceneStore'
 import type { SceneObjectMeta, SceneTransform } from '@/store/types'
 
-export type CommandKind = 'transform' | 'add-object' | 'remove-object'
+export type CommandKind = 'transform' | 'add-object' | 'remove-object' | 'vertex-edit'
 
 export interface Command {
   readonly kind: CommandKind
@@ -156,6 +156,56 @@ export class RemoveObjectCommand implements Command {
     }
     if (this.selectAfterUndo) {
       sceneStore.setSelected(this.selectAfterUndo)
+    }
+  }
+}
+
+export class VertexEditCommand implements Command {
+  readonly kind = 'vertex-edit' as const
+
+  constructor(
+    private readonly targetId: string,
+    private readonly indices: number[],
+    private readonly before: Float32Array,
+    private readonly after: Float32Array,
+    private readonly sceneManager: SceneManager
+  ) {}
+
+  do(): void {
+    this.apply(this.after)
+  }
+
+  undo(): void {
+    this.apply(this.before)
+  }
+
+  private apply(positions: Float32Array): void {
+    const object = this.sceneManager.getObjectById(this.targetId)
+    if (!(object instanceof THREE.Mesh)) {
+      return
+    }
+    const geometry = object.geometry
+    if (!(geometry instanceof THREE.BufferGeometry)) {
+      return
+    }
+    const position = geometry.getAttribute('position')
+    if (!(position instanceof THREE.BufferAttribute) || positions.length < this.indices.length * 3) {
+      return
+    }
+
+    for (let i = 0; i < this.indices.length; i += 1) {
+      const index = this.indices[i]
+      if (index < 0 || index >= position.count) {
+        continue
+      }
+      const offset = i * 3
+      position.setXYZ(index, positions[offset], positions[offset + 1], positions[offset + 2])
+    }
+    position.needsUpdate = true
+    geometry.computeBoundingBox()
+    geometry.computeBoundingSphere()
+    if (geometry.getAttribute('normal')) {
+      geometry.computeVertexNormals()
     }
   }
 }

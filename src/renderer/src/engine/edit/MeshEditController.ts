@@ -13,6 +13,7 @@ function positionKey(x: number, y: number, z: number): string {
 }
 
 export class MeshEditController {
+  private targetMesh: THREE.Mesh | null = null
   private pointsObject: THREE.Points | null = null
   private pointsGeometry: THREE.BufferGeometry | null = null
   private pointsMaterial: THREE.PointsMaterial | null = null
@@ -55,6 +56,7 @@ export class MeshEditController {
 
     mesh.add(points)
 
+    this.targetMesh = mesh
     this.pointsObject = points
     this.pointsGeometry = pointsGeometry
     this.pointsMaterial = pointsMaterial
@@ -67,10 +69,19 @@ export class MeshEditController {
     }
     this.pointsGeometry?.dispose()
     this.pointsMaterial?.dispose()
+    this.targetMesh = null
     this.pointsGeometry = null
     this.pointsMaterial = null
     this.weldGroups.clear()
     this.indexToGroupKey.clear()
+  }
+
+  isActive(): boolean {
+    return this.targetMesh !== null
+  }
+
+  getTargetMesh(): THREE.Mesh | null {
+    return this.targetMesh
   }
 
   getPointsObject(): THREE.Points | null {
@@ -120,6 +131,96 @@ export class MeshEditController {
     colorAttribute.needsUpdate = true
   }
 
+  getSelectionCentroidWorld(indices: number[]): THREE.Vector3 | null {
+    const position = this.getPositionAttribute()
+    const mesh = this.targetMesh
+    if (!position || !mesh || indices.length === 0) {
+      return null
+    }
+
+    const local = new THREE.Vector3()
+    const centroid = new THREE.Vector3()
+    let count = 0
+    for (const index of indices) {
+      if (index < 0 || index >= position.count) {
+        continue
+      }
+      local.set(position.getX(index), position.getY(index), position.getZ(index))
+      centroid.add(local)
+      count += 1
+    }
+    if (count === 0) {
+      return null
+    }
+
+    centroid.multiplyScalar(1 / count)
+    return mesh.localToWorld(centroid)
+  }
+
+  snapshotPositions(indices: number[]): Float32Array {
+    const position = this.getPositionAttribute()
+    if (!position) {
+      return new Float32Array(0)
+    }
+
+    const result = new Float32Array(indices.length * 3)
+    for (let i = 0; i < indices.length; i += 1) {
+      const index = indices[i]
+      if (index < 0 || index >= position.count) {
+        continue
+      }
+      const offset = i * 3
+      result[offset] = position.getX(index)
+      result[offset + 1] = position.getY(index)
+      result[offset + 2] = position.getZ(index)
+    }
+    return result
+  }
+
+  applyPositions(indices: number[], positions: Float32Array): void {
+    const position = this.getPositionAttribute()
+    if (!position || positions.length < indices.length * 3) {
+      return
+    }
+
+    for (let i = 0; i < indices.length; i += 1) {
+      const index = indices[i]
+      if (index < 0 || index >= position.count) {
+        continue
+      }
+      const offset = i * 3
+      position.setXYZ(index, positions[offset], positions[offset + 1], positions[offset + 2])
+    }
+    this.notifyGeometryUpdated()
+  }
+
+  applyWorldDeltaPreview(indices: number[], worldDelta: THREE.Vector3): void {
+    const position = this.getPositionAttribute()
+    const mesh = this.targetMesh
+    if (!position || !mesh || indices.length === 0) {
+      return
+    }
+
+    const inverseWorld = mesh.matrixWorld.clone().invert()
+    const worldOrigin = new THREE.Vector3(0, 0, 0).applyMatrix4(mesh.matrixWorld)
+    const localOrigin = worldOrigin.clone().applyMatrix4(inverseWorld)
+    const localMoved = worldOrigin.clone().add(worldDelta).applyMatrix4(inverseWorld)
+    const delta = localMoved.sub(localOrigin)
+
+    for (const index of indices) {
+      if (index < 0 || index >= position.count) {
+        continue
+      }
+      position.setXYZ(
+        index,
+        position.getX(index) + delta.x,
+        position.getY(index) + delta.y,
+        position.getZ(index) + delta.z
+      )
+    }
+    this.notifyGeometryUpdated()
+  }
+
   dispose(): void {
     this.exit()
   }
@@ -137,6 +238,34 @@ export class MeshEditController {
         this.weldGroups.set(key, [index])
       }
       this.indexToGroupKey.set(index, key)
+    }
+  }
+
+  private getPositionAttribute(): THREE.BufferAttribute | null {
+    const geometry = this.targetMesh?.geometry
+    if (!(geometry instanceof THREE.BufferGeometry)) {
+      return null
+    }
+    const position = geometry.getAttribute('position')
+    if (!(position instanceof THREE.BufferAttribute)) {
+      return null
+    }
+    return position
+  }
+
+  private notifyGeometryUpdated(): void {
+    const geometry = this.targetMesh?.geometry
+    if (!(geometry instanceof THREE.BufferGeometry)) {
+      return
+    }
+    const position = geometry.getAttribute('position')
+    if (position instanceof THREE.BufferAttribute) {
+      position.needsUpdate = true
+    }
+    geometry.computeBoundingBox()
+    geometry.computeBoundingSphere()
+    if (geometry.getAttribute('normal')) {
+      geometry.computeVertexNormals()
     }
   }
 }

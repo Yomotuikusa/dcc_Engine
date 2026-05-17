@@ -51,6 +51,7 @@ export class TransformController {
     domElement: HTMLElement
     orbitControls: { enabled: boolean }
     onCommitTransform: (target: THREE.Object3D, before: SceneTransform | null) => void
+    onObjectChange?: (target: THREE.Object3D) => void
   }) {
     this.orbitControls = params.orbitControls
     this.controls = new TransformControls(params.camera, params.domElement)
@@ -84,6 +85,12 @@ export class TransformController {
         params.onCommitTransform(this.attachedObject, this.dragStartTransform)
       }
       this.dragStartTransform = null
+    })
+    this.controls.addEventListener('objectChange', () => {
+      if (!this.attachedObject) {
+        return
+      }
+      params.onObjectChange?.(this.attachedObject)
     })
   }
 
