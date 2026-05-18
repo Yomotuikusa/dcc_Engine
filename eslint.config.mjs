@@ -1,4 +1,5 @@
 import { defineConfig } from 'eslint/config'
+import tseslint from 'typescript-eslint'
 import eslintPluginReact from 'eslint-plugin-react'
 import eslintPluginReactHooks from 'eslint-plugin-react-hooks'
 import eslintPluginReactRefresh from 'eslint-plugin-react-refresh'
@@ -12,6 +13,13 @@ export default defineConfig(
       react: {
         version: 'detect'
       }
+    }
+  },
+  {
+    // TypeScript構文をパースできるようにする（最小限の設定。recommendedルールは適用しない）
+    files: ['**/*.{ts,tsx}'],
+    languageOptions: {
+      parser: tseslint.parser
     }
   },
   {
