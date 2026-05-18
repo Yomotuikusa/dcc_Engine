@@ -64,4 +64,18 @@ export class SelectionRaycaster {
     this.raycaster.params.Points.threshold = previousThreshold
     return intersections
   }
+
+  intersectLineSegments(
+    ndc: THREE.Vector2,
+    camera: THREE.Camera,
+    lineSegments: THREE.LineSegments,
+    threshold: number
+  ): THREE.Intersection[] {
+    this.raycaster.setFromCamera(ndc, camera)
+    const previousThreshold = this.raycaster.params.Line.threshold
+    this.raycaster.params.Line.threshold = threshold
+    const intersections = this.raycaster.intersectObject(lineSegments, false)
+    this.raycaster.params.Line.threshold = previousThreshold
+    return intersections
+  }
 }

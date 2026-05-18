@@ -23,6 +23,7 @@ const FBX_ID_PREFIX = 'fbx'
 // FBX 読み込み時に許容する最大ファイルサイズ (100MB)
 const MAX_FBX_FILE_SIZE = 100 * 1024 * 1024
 const EDIT_POINTS_THRESHOLD = 0.08
+const EDIT_LINES_THRESHOLD = 0.08
 
 interface ViewportPanelProps {
   pendingFile?: File | null
@@ -228,7 +229,12 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
         if (!meshEditController) {
           return
         }
-        const indices = [...state.selectedVertices]
+        const indices = meshEditController.resolveActiveMoveIndices(
+          state.editSubMode,
+          state.selectedVertices,
+          state.selectedEdges,
+          state.selectedFaces
+        )
         if (indices.length === 0) {
           return
         }
@@ -325,7 +331,12 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
         transformController.detach()
         return
       }
-      const centroid = meshEditController.getSelectionCentroidWorld(state.selectedVertices)
+      const centroid = meshEditController.getActiveSelectionCentroidWorld(
+        state.editSubMode,
+        state.selectedVertices,
+        state.selectedEdges,
+        state.selectedFaces
+      )
       if (!centroid) {
         transformController.detach()
         return
@@ -522,33 +533,88 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
     )
     const state = useSceneStore.getState()
     if (state.editorMode === 'edit') {
-      const points = meshEditControllerRef.current?.getPointsObject()
-      if (!points) {
+      const meshEditController = meshEditControllerRef.current
+      if (!meshEditController) {
         return
       }
-      const [intersection] = raycasterRef.current.intersectPoints(
-        ndc,
-        viewport.camera,
-        points,
-        EDIT_POINTS_THRESHOLD
-      )
+      if (state.editSubMode === 'vertex') {
+        const points = meshEditController.getPointsObject()
+        if (!points) {
+          return
+        }
+        const [intersection] = raycasterRef.current.intersectPoints(
+          ndc,
+          viewport.camera,
+          points,
+          EDIT_POINTS_THRESHOLD
+        )
+        if (!intersection) {
+          // Shift+空クリックは選択維持、通常空クリックは全解除
+          if (!event.shiftKey) {
+            useSceneStore.getState().setSelectedVertices([])
+          }
+          return
+        }
+
+        const pickedIndices = meshEditController.resolveVertexIndices(intersection)
+        if (pickedIndices.length === 0) {
+          return
+        }
+        if (event.shiftKey) {
+          useSceneStore.getState().setSelectedVertices([...state.selectedVertices, ...pickedIndices])
+          return
+        }
+        useSceneStore.getState().setSelectedVertices(pickedIndices)
+        return
+      }
+      if (state.editSubMode === 'edge') {
+        const edges = meshEditController.getEdgeLinesObject()
+        if (!edges) {
+          return
+        }
+        const [intersection] = raycasterRef.current.intersectLineSegments(
+          ndc,
+          viewport.camera,
+          edges,
+          EDIT_LINES_THRESHOLD
+        )
+        if (!intersection) {
+          if (!event.shiftKey) {
+            useSceneStore.getState().setSelectedEdges([])
+          }
+          return
+        }
+        const edgeId = meshEditController.resolveEdgeSelection(intersection)
+        if (edgeId === null) {
+          return
+        }
+        if (event.shiftKey) {
+          useSceneStore.getState().setSelectedEdges([...state.selectedEdges, edgeId])
+          return
+        }
+        useSceneStore.getState().setSelectedEdges([edgeId])
+        return
+      }
+      const targetMesh = meshEditController.getTargetMesh()
+      if (!targetMesh) {
+        return
+      }
+      const [intersection] = raycasterRef.current.intersect(ndc, viewport.camera, [targetMesh], false)
       if (!intersection) {
-        // Shift+空クリックは選択維持、通常空クリックは全解除
         if (!event.shiftKey) {
-          useSceneStore.getState().setSelectedVertices([])
+          useSceneStore.getState().setSelectedFaces([])
         }
         return
       }
-
-      const pickedIndices = meshEditControllerRef.current?.resolveVertexIndices(intersection) ?? []
-      if (pickedIndices.length === 0) {
+      const faceId = meshEditController.resolveFaceSelection(intersection)
+      if (faceId === null) {
         return
       }
       if (event.shiftKey) {
-        useSceneStore.getState().setSelectedVertices([...state.selectedVertices, ...pickedIndices])
+        useSceneStore.getState().setSelectedFaces([...state.selectedFaces, faceId])
         return
       }
-      useSceneStore.getState().setSelectedVertices(pickedIndices)
+      useSceneStore.getState().setSelectedFaces([faceId])
       return
     }
 

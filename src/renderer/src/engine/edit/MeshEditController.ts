@@ -157,6 +157,10 @@ export class MeshEditController {
     return this.pointsObject
   }
 
+  getEdgeLinesObject(): THREE.LineSegments | null {
+    return this.edgeLinesObject
+  }
+
   resolveVertexIndices(intersection: THREE.Intersection): number[] {
     if (typeof intersection.index !== 'number') {
       return []
@@ -173,6 +177,23 @@ export class MeshEditController {
     }
 
     return [...group]
+  }
+
+  resolveEdgeSelection(intersection: THREE.Intersection): number | null {
+    if (typeof intersection.faceIndex !== 'number') {
+      return null
+    }
+    if (intersection.faceIndex < 0 || !Number.isInteger(intersection.faceIndex)) {
+      return null
+    }
+    return intersection.faceIndex
+  }
+
+  resolveFaceSelection(intersection: THREE.Intersection): number | null {
+    if (typeof intersection.faceIndex !== 'number') {
+      return null
+    }
+    return this.getFaceGroupIdFromTriangle(intersection.faceIndex)
   }
 
   getEdges(): ReadonlyArray<LogicalEdge> {
@@ -299,6 +320,55 @@ export class MeshEditController {
 
     centroid.multiplyScalar(1 / count)
     return mesh.localToWorld(centroid)
+  }
+
+  resolveActiveMoveIndices(
+    mode: 'vertex' | 'edge' | 'face',
+    selectedVertices: number[],
+    selectedEdges: number[],
+    selectedFaces: number[]
+  ): number[] {
+    if (mode === 'vertex') {
+      return [...selectedVertices]
+    }
+    const indices = new Set<number>()
+    if (mode === 'edge') {
+      for (const edgeId of selectedEdges) {
+        const edge = this.edges.find((value) => value.id === edgeId)
+        if (!edge) {
+          continue
+        }
+        for (const positionIndex of edge.positionIndices) {
+          indices.add(positionIndex)
+        }
+      }
+      return [...indices].sort((left, right) => left - right)
+    }
+    for (const faceId of selectedFaces) {
+      const group = this.faceGroups.find((value) => value.id === faceId)
+      if (!group) {
+        continue
+      }
+      for (const positionIndex of group.positionIndices) {
+        indices.add(positionIndex)
+      }
+    }
+    return [...indices].sort((left, right) => left - right)
+  }
+
+  getActiveSelectionCentroidWorld(
+    mode: 'vertex' | 'edge' | 'face',
+    selectedVertices: number[],
+    selectedEdges: number[],
+    selectedFaces: number[]
+  ): THREE.Vector3 | null {
+    const indices = this.resolveActiveMoveIndices(
+      mode,
+      selectedVertices,
+      selectedEdges,
+      selectedFaces
+    )
+    return this.getSelectionCentroidWorld(indices)
   }
 
   snapshotPositions(indices: number[]): Float32Array {
