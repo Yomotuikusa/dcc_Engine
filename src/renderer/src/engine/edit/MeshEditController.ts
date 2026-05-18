@@ -267,5 +267,33 @@ export class MeshEditController {
     if (geometry.getAttribute('normal')) {
       geometry.computeVertexNormals()
     }
+    // pointsGeometry は mesh.geometry と position attribute を共有するが
+    // BufferGeometry インスタンス自体は別物のため、点群側の bounds も
+    // 個別に再計算しないと THREE.Points.raycast が boundingSphere で
+    // 早期棄却し、大きく動かした頂点が再選択できなくなる。
+    if (this.pointsGeometry) {
+      this.pointsGeometry.computeBoundingBox()
+      this.pointsGeometry.computeBoundingSphere()
+    }
+  }
+
+  /**
+   * VertexEditCommand 等の外部更新後に点群 bounds を整合させる。
+   * mesh 側 geometry と pointsGeometry 双方の bounding box / sphere を
+   * 再計算する。position の書き換え・needsUpdate・normal 再計算は
+   * 呼び出し側（VertexEditCommand）で済んでいる前提のため、ここでは
+   * bounds の整合のみを行う。Edit Mode 非アクティブで pointsGeometry が
+   * 無い場合は安全に no-op とする。
+   */
+  recomputeBounds(): void {
+    const geometry = this.targetMesh?.geometry
+    if (geometry instanceof THREE.BufferGeometry) {
+      geometry.computeBoundingBox()
+      geometry.computeBoundingSphere()
+    }
+    if (this.pointsGeometry) {
+      this.pointsGeometry.computeBoundingBox()
+      this.pointsGeometry.computeBoundingSphere()
+    }
   }
 }

@@ -52,6 +52,8 @@ export class TransformController {
     orbitControls: { enabled: boolean }
     onCommitTransform: (target: THREE.Object3D, before: SceneTransform | null) => void
     onObjectChange?: (target: THREE.Object3D) => void
+    // ドラッグ開始時に呼ばれるコールバック（頂点ドラッグの基準スナップショット確定用）
+    onDragStart?: (target: THREE.Object3D) => void
   }) {
     this.orbitControls = params.orbitControls
     this.controls = new TransformControls(params.camera, params.domElement)
@@ -77,6 +79,8 @@ export class TransformController {
             ],
             scale: [this.attachedObject.scale.x, this.attachedObject.scale.y, this.attachedObject.scale.z]
           }
+          // ドラッグ開始時点で基準スナップショットを確定させるためコールバックを呼ぶ
+          params.onDragStart?.(this.attachedObject)
         }
         return
       }

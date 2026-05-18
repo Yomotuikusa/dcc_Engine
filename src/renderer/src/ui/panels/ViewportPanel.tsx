@@ -124,6 +124,10 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
     const vertexProxy = new THREE.Object3D()
     vertexProxy.visible = false
     viewport.scene.add(vertexProxy)
+    // syncVertexTransformGizmo は new TransformController より後で定義される const のため、
+    // onCommitTransform から直接参照すると use-before-define / TDZ になる。
+    // ここで保持用オブジェクトを宣言し、定義後に run を差し替えることで回避する。
+    const vertexGizmoSync = { run: (): void => {} }
     const transformController = new TransformController({
       scene: viewport.scene,
       camera: viewport.camera,
@@ -133,6 +137,7 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
         const state = useSceneStore.getState()
         if (state.editorMode === 'edit' && target === vertexProxy) {
           const sceneManagerCurrent = sceneManagerRef.current
+          // VertexEditCommand 用の値をローカル変数へ退避してから ref をクリアする
           const beforePositions = vertexDragBeforeRef.current
           const indices = [...vertexDragIndicesRef.current]
           const targetId = state.editTargetId
@@ -156,9 +161,35 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
           if (!changed) {
             return
           }
-          useHistoryStore
-            .getState()
-            .execute(new VertexEditCommand(targetId, indices, beforePositions, afterPositions, sceneManagerCurrent))
+          useHistoryStore.getState().execute(
+            new VertexEditCommand(
+              targetId,
+              indices,
+              beforePositions,
+              afterPositions,
+              sceneManagerCurrent,
+              // Undo/Redo（historyStore 経由の do/undo → apply）でも
+              // ギズモ・点群 bounds が移動後位置へ追従するよう再同期する。
+              () => {
+                const callbackState = useSceneStore.getState()
+                if (
+                  callbackState.editorMode !== 'edit' ||
+                  callbackState.editTargetId !== targetId
+                ) {
+                  return
+                }
+                // 点群 raycast の早期棄却対策として bounds を整合させる。
+                meshEditControllerRef.current?.recomputeBounds()
+                // vertexProxy を最新の選択重心へ再配置する（冪等）。
+                vertexGizmoSync.run()
+              }
+            )
+          )
+          // ドラッグ確定後に vertexProxy を新しい選択重心へ再配置し、
+          // 同一選択での連続ドラッグによる累積乖離を防ぐ。
+          // 注: 初回 do() の onApplied でも同じ再配置が走るため二重呼び出しになるが、
+          // 再配置は冪等なので無害（意図的な保険）。
+          vertexGizmoSync.run()
           return
         }
 
@@ -179,7 +210,9 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
         }
         useHistoryStore.getState().execute(new TransformCommand(targetId, before, after, sceneManager))
       },
-      onObjectChange: (target) => {
+      onDragStart: (target) => {
+        // ドラッグ開始時点で基準スナップショットを確定する。
+        // 遅延取得をやめることで、最初の1移動分が基準に含まれるズレを解消する。
         const state = useSceneStore.getState()
         if (state.editorMode !== 'edit' || target !== vertexProxy) {
           return
@@ -192,14 +225,24 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
         if (indices.length === 0) {
           return
         }
-        if (!vertexDragStartWorldRef.current) {
-          vertexDragStartWorldRef.current = target.position.clone()
-          vertexDragBeforeRef.current = meshEditController.snapshotPositions(indices)
-          vertexDragIndicesRef.current = indices
+        vertexDragStartWorldRef.current = target.position.clone()
+        vertexDragBeforeRef.current = meshEditController.snapshotPositions(indices)
+        vertexDragIndicesRef.current = [...indices]
+      },
+      onObjectChange: (target) => {
+        const state = useSceneStore.getState()
+        if (state.editorMode !== 'edit' || target !== vertexProxy) {
+          return
         }
+        const meshEditController = meshEditControllerRef.current
+        if (!meshEditController) {
+          return
+        }
+        // onDragStart で基準が確定済み前提。未確定なら何もしない。
         const start = vertexDragStartWorldRef.current
         const beforePositions = vertexDragBeforeRef.current
-        if (!start || !beforePositions) {
+        const indices = vertexDragIndicesRef.current
+        if (!start || !beforePositions || indices.length === 0) {
           return
         }
         meshEditController.applyPositions(indices, beforePositions)
@@ -286,6 +329,9 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
       transformController.setMode('translate')
       transformController.attach(vertexProxy)
     }
+    // onCommitTransform から TDZ/use-before-define を回避しつつ重心再配置を呼べるよう、
+    // 定義済みの syncVertexTransformGizmo を保持用オブジェクトへ差し替える。
+    vertexGizmoSync.run = syncVertexTransformGizmo
     syncObjectTransformGizmo()
     const unsubscribeSelected = useSceneStore.subscribe((state) => state.selectedId, () => {
       syncObjectTransformGizmo()
@@ -294,8 +340,10 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
       const selectedId = useSceneStore.getState().selectedId
         if (editorMode === 'edit') {
         if (!selectedId) {
+          // 選択対象が無く編集モードを維持できないため Object Mode へ安全復帰する
           meshEditController.exit()
           transformController.detach()
+          useSceneStore.getState().exitEditMode()
           return
         }
         const object = sceneManager.getObjectById(selectedId)
@@ -303,6 +351,16 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
           meshEditController.enter(object)
         } else {
           meshEditController.exit()
+        }
+        // enter() は geometry 不正(非 BufferGeometry / position 属性なし)時に
+        // targetMesh を設定せず早期 return するため、isActive() で有効化可否を判定する。
+        // 非 Mesh も含め有効化できなかった場合は「編集モード表示のまま操作不能」を
+        // 防ぐため、対象不正時は Object Mode へ安全復帰する。
+        if (!meshEditController.isActive()) {
+          meshEditController.exit()
+          transformController.detach()
+          useSceneStore.getState().exitEditMode()
+          return
         }
         transformController.detach()
         transformController.setMode('translate')
@@ -443,7 +501,10 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
         EDIT_POINTS_THRESHOLD
       )
       if (!intersection) {
-        useSceneStore.getState().setSelectedVertices([])
+        // Shift+空クリックは選択維持、通常空クリックは全解除
+        if (!event.shiftKey) {
+          useSceneStore.getState().setSelectedVertices([])
+        }
         return
       }
 

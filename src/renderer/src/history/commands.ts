@@ -168,7 +168,11 @@ export class VertexEditCommand implements Command {
     private readonly indices: number[],
     private readonly before: Float32Array,
     private readonly after: Float32Array,
-    private readonly sceneManager: SceneManager
+    private readonly sceneManager: SceneManager,
+    // ジオメトリ更新が正常完了した直後に発火する任意コールバック。
+    // Command 内に ViewportPanel/Three.js シーン操作を持ち込まず、
+    // ギズモ・点群 bounds の再同期は呼び出し側へ委譲する（DI 方針）。
+    private readonly onApplied?: () => void
   ) {}
 
   do(): void {
@@ -207,5 +211,8 @@ export class VertexEditCommand implements Command {
     if (geometry.getAttribute('normal')) {
       geometry.computeVertexNormals()
     }
+    // 早期 return（mesh/geometry 不在等）した場合は呼ばない。
+    // 正常完了時のみコールバックを発火する。
+    this.onApplied?.()
   }
 }
