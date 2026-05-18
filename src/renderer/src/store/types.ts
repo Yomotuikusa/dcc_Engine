@@ -1,6 +1,7 @@
 export type SceneObjectType = 'mesh' | 'group' | 'light' | 'camera'
 export type TransformMode = 'translate' | 'rotate' | 'scale'
 export type EditorMode = 'object' | 'edit'
+export type EditSubMode = 'vertex' | 'edge' | 'face'
 
 export interface SceneObjectMeta {
   id: string

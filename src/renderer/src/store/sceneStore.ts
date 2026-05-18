@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
-import type { EditorMode, SceneObjectMeta, SceneTransform, TransformMode } from './types'
+import type { EditSubMode, EditorMode, SceneObjectMeta, SceneTransform, TransformMode } from './types'
 
 // commit 元を識別するためのソース種別
 // - 'ui': プロパティパネル等の UI 経由 (書き戻し必要)
@@ -14,8 +14,11 @@ interface SceneState {
   transformMode: TransformMode
   selectedTransform: SceneTransform | null
   editorMode: EditorMode
+  editSubMode: EditSubMode
   editTargetId: string | null
   selectedVertices: number[]
+  selectedEdges: number[]
+  selectedFaces: number[]
   // 直近の commitTransform の発生源 (未 commit の場合は null)
   lastCommitSource: CommitSource | null
   addObject: (object: SceneObjectMeta) => void
@@ -23,14 +26,21 @@ interface SceneState {
   setSelected: (id: string | null) => void
   setTransformMode: (mode: TransformMode) => void
   setEditorMode: (mode: EditorMode) => void
+  setEditSubMode: (mode: EditSubMode) => void
   enterEditMode: (targetId: string) => void
   exitEditMode: () => void
   setSelectedVertices: (indices: number[]) => void
+  setSelectedEdges: (ids: number[]) => void
+  setSelectedFaces: (ids: number[]) => void
   commitTransform: (transform: SceneTransform | null, source?: CommitSource) => void
 }
 
 function normalizeVertexIndices(indices: number[]): number[] {
   return Array.from(new Set(indices)).sort((a, b) => a - b)
+}
+
+function normalizePrimitiveIds(ids: number[]): number[] {
+  return Array.from(new Set(ids)).sort((a, b) => a - b)
 }
 
 function collectDescendantIds(
@@ -61,8 +71,11 @@ export const useSceneStore = create<SceneState>()(
     transformMode: 'translate',
     selectedTransform: null,
     editorMode: 'object',
+    editSubMode: 'vertex',
     editTargetId: null,
     selectedVertices: [],
+    selectedEdges: [],
+    selectedFaces: [],
     lastCommitSource: null,
     addObject: (object) =>
       set((state) => {
@@ -92,8 +105,11 @@ export const useSceneStore = create<SceneState>()(
           selectedId: nextSelectedId,
           selectedTransform: null,
           editorMode: shouldExitEditMode ? 'object' : state.editorMode,
+          editSubMode: shouldExitEditMode ? 'vertex' : state.editSubMode,
           editTargetId: shouldExitEditMode ? null : state.editTargetId,
           selectedVertices: shouldExitEditMode ? [] : state.selectedVertices,
+          selectedEdges: shouldExitEditMode ? [] : state.selectedEdges,
+          selectedFaces: shouldExitEditMode ? [] : state.selectedFaces,
           lastCommitSource: null
         }
       }),
@@ -102,27 +118,51 @@ export const useSceneStore = create<SceneState>()(
         selectedId: id,
         selectedTransform: null,
         editorMode: 'object',
+        editSubMode: 'vertex',
         editTargetId: null,
         selectedVertices: [],
+        selectedEdges: [],
+        selectedFaces: [],
         lastCommitSource: null
       })),
     setTransformMode: (mode) => set(() => ({ transformMode: mode })),
     setEditorMode: (mode) => set(() => ({ editorMode: mode })),
+    setEditSubMode: (mode) =>
+      set(() => ({
+        editSubMode: mode,
+        selectedVertices: [],
+        selectedEdges: [],
+        selectedFaces: []
+      })),
     enterEditMode: (targetId) =>
       set(() => ({
         editorMode: 'edit',
+        editSubMode: 'vertex',
         editTargetId: targetId,
-        selectedVertices: []
+        selectedVertices: [],
+        selectedEdges: [],
+        selectedFaces: []
       })),
     exitEditMode: () =>
       set(() => ({
         editorMode: 'object',
+        editSubMode: 'vertex',
         editTargetId: null,
-        selectedVertices: []
+        selectedVertices: [],
+        selectedEdges: [],
+        selectedFaces: []
       })),
     setSelectedVertices: (indices) =>
       set(() => ({
         selectedVertices: normalizeVertexIndices(indices)
+      })),
+    setSelectedEdges: (ids) =>
+      set(() => ({
+        selectedEdges: normalizePrimitiveIds(ids)
+      })),
+    setSelectedFaces: (ids) =>
+      set(() => ({
+        selectedFaces: normalizePrimitiveIds(ids)
       })),
     // source は省略時 'ui'。エンジン由来は 'engine' を明示する。
     commitTransform: (transform, source = 'ui') =>
