@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 
 const WELD_EPSILON = 1e-5
+const FACE_NORMAL_DOT_THRESHOLD = 0.999
 const DEFAULT_VERTEX_COLOR = new THREE.Color(0x4ea1ff)
 const SELECTED_VERTEX_COLOR = new THREE.Color(0xffa000)
 
@@ -12,6 +13,24 @@ function positionKey(x: number, y: number, z: number): string {
   return `${quantize(x)}:${quantize(y)}:${quantize(z)}`
 }
 
+interface LogicalEdge {
+  id: number
+  positionIndices: number[]
+}
+
+interface FaceGroup {
+  id: number
+  faceIndices: number[]
+  positionIndices: number[]
+}
+
+interface TriangleUnit {
+  faceIndex: number
+  indices: [number, number, number]
+  groupKeys: [string, string, string]
+  normal: THREE.Vector3
+}
+
 export class MeshEditController {
   private targetMesh: THREE.Mesh | null = null
   private pointsObject: THREE.Points | null = null
@@ -19,6 +38,10 @@ export class MeshEditController {
   private pointsMaterial: THREE.PointsMaterial | null = null
   private weldGroups = new Map<string, number[]>()
   private indexToGroupKey = new Map<number, string>()
+  private edges: LogicalEdge[] = []
+  private edgeKeyToId = new Map<string, number>()
+  private faceGroups: FaceGroup[] = []
+  private triToFaceGroup = new Map<number, number>()
 
   enter(mesh: THREE.Mesh): void {
     this.exit()
@@ -33,6 +56,7 @@ export class MeshEditController {
     }
 
     this.buildWeldGroups(position)
+    this.buildTopology(geometry, position)
 
     const pointsGeometry = new THREE.BufferGeometry()
     pointsGeometry.setAttribute('position', position)
@@ -77,6 +101,10 @@ export class MeshEditController {
     this.pointsMaterial = null
     this.weldGroups.clear()
     this.indexToGroupKey.clear()
+    this.edges = []
+    this.edgeKeyToId.clear()
+    this.faceGroups = []
+    this.triToFaceGroup.clear()
   }
 
   isActive(): boolean {
@@ -107,6 +135,21 @@ export class MeshEditController {
     }
 
     return [...group]
+  }
+
+  getEdges(): ReadonlyArray<LogicalEdge> {
+    return this.edges
+  }
+
+  getFaceGroups(): ReadonlyArray<FaceGroup> {
+    return this.faceGroups
+  }
+
+  getFaceGroupIdFromTriangle(faceIndex: number): number | null {
+    if (!Number.isInteger(faceIndex) || faceIndex < 0) {
+      return null
+    }
+    return this.triToFaceGroup.get(faceIndex) ?? null
   }
 
   setSelectedVertices(indices: number[]): void {
@@ -242,6 +285,242 @@ export class MeshEditController {
       }
       this.indexToGroupKey.set(index, key)
     }
+  }
+
+  private buildTopology(geometry: THREE.BufferGeometry, position: THREE.BufferAttribute): void {
+    this.edges = []
+    this.edgeKeyToId.clear()
+    this.faceGroups = []
+    this.triToFaceGroup.clear()
+
+    const triangles = this.buildTriangles(geometry, position)
+    if (triangles.length === 0) {
+      return
+    }
+
+    this.buildLogicalEdges(triangles)
+    this.buildFaceGroups(triangles)
+  }
+
+  private buildTriangles(
+    geometry: THREE.BufferGeometry,
+    position: THREE.BufferAttribute
+  ): TriangleUnit[] {
+    const indexAttr = geometry.getIndex()
+    const indexCount = indexAttr ? indexAttr.count : position.count
+    const triangleCount = Math.floor(indexCount / 3)
+    const triangles: TriangleUnit[] = []
+
+    for (let faceIndex = 0; faceIndex < triangleCount; faceIndex += 1) {
+      const base = faceIndex * 3
+      const a = indexAttr ? indexAttr.getX(base) : base
+      const b = indexAttr ? indexAttr.getX(base + 1) : base + 1
+      const c = indexAttr ? indexAttr.getX(base + 2) : base + 2
+      if (a >= position.count || b >= position.count || c >= position.count) {
+        continue
+      }
+      const keyA = this.indexToGroupKey.get(a)
+      const keyB = this.indexToGroupKey.get(b)
+      const keyC = this.indexToGroupKey.get(c)
+      if (!keyA || !keyB || !keyC) {
+        continue
+      }
+      triangles.push({
+        faceIndex,
+        indices: [a, b, c],
+        groupKeys: [keyA, keyB, keyC],
+        normal: this.computeTriangleNormal(position, a, b, c)
+      })
+    }
+
+    return triangles
+  }
+
+  private buildLogicalEdges(triangles: TriangleUnit[]): void {
+    const edgeKeyToPositionSet = new Map<string, Set<number>>()
+
+    for (const triangle of triangles) {
+      const [a, b, c] = triangle.indices
+      const [keyA, keyB, keyC] = triangle.groupKeys
+      this.addLogicalEdge(edgeKeyToPositionSet, keyA, keyB, a, b)
+      this.addLogicalEdge(edgeKeyToPositionSet, keyB, keyC, b, c)
+      this.addLogicalEdge(edgeKeyToPositionSet, keyC, keyA, c, a)
+    }
+
+    const sortedEntries = [...edgeKeyToPositionSet.entries()].sort(([left], [right]) =>
+      left.localeCompare(right)
+    )
+    this.edges = sortedEntries.map(([edgeKey, positionSet], index) => {
+      this.edgeKeyToId.set(edgeKey, index)
+      return {
+        id: index,
+        positionIndices: [...positionSet].sort((left, right) => left - right)
+      }
+    })
+  }
+
+  private addLogicalEdge(
+    edgeKeyToPositionSet: Map<string, Set<number>>,
+    leftGroupKey: string,
+    rightGroupKey: string,
+    leftIndex: number,
+    rightIndex: number
+  ): void {
+    const edgeKey = this.toEdgeKey(leftGroupKey, rightGroupKey)
+    const positionSet = edgeKeyToPositionSet.get(edgeKey) ?? new Set<number>()
+    this.appendWeldGroup(positionSet, leftGroupKey, leftIndex)
+    this.appendWeldGroup(positionSet, rightGroupKey, rightIndex)
+    edgeKeyToPositionSet.set(edgeKey, positionSet)
+  }
+
+  private buildFaceGroups(triangles: TriangleUnit[]): void {
+    const faceIndexToTriangle = new Map<number, TriangleUnit>()
+    const edgeToFaces = new Map<string, number[]>()
+    for (const triangle of triangles) {
+      faceIndexToTriangle.set(triangle.faceIndex, triangle)
+      const [keyA, keyB, keyC] = triangle.groupKeys
+      const edgeKeys = [
+        this.toEdgeKey(keyA, keyB),
+        this.toEdgeKey(keyB, keyC),
+        this.toEdgeKey(keyC, keyA)
+      ]
+      for (const edgeKey of edgeKeys) {
+        const faces = edgeToFaces.get(edgeKey)
+        if (faces) {
+          faces.push(triangle.faceIndex)
+        } else {
+          edgeToFaces.set(edgeKey, [triangle.faceIndex])
+        }
+      }
+    }
+
+    const adjacency = new Map<number, Set<number>>()
+    for (const faces of edgeToFaces.values()) {
+      if (faces.length < 2) {
+        continue
+      }
+      for (let i = 0; i < faces.length - 1; i += 1) {
+        for (let j = i + 1; j < faces.length; j += 1) {
+          const left = faces[i]
+          const right = faces[j]
+          if (!adjacency.has(left)) adjacency.set(left, new Set<number>())
+          if (!adjacency.has(right)) adjacency.set(right, new Set<number>())
+          adjacency.get(left)?.add(right)
+          adjacency.get(right)?.add(left)
+        }
+      }
+    }
+
+    const visited = new Set<number>()
+    const sortedFaceIndices = triangles.map((triangle) => triangle.faceIndex).sort((a, b) => a - b)
+    let faceGroupId = 0
+    for (const faceIndex of sortedFaceIndices) {
+      if (visited.has(faceIndex)) {
+        continue
+      }
+      const seed = faceIndexToTriangle.get(faceIndex)
+      if (!seed) {
+        continue
+      }
+      const queue = [faceIndex]
+      const groupFaceIndices: number[] = []
+      const groupPositionSet = new Set<number>()
+      visited.add(faceIndex)
+
+      while (queue.length > 0) {
+        const current = queue.shift()
+        if (typeof current !== 'number') {
+          continue
+        }
+        const currentTri = faceIndexToTriangle.get(current)
+        if (!currentTri) {
+          continue
+        }
+        groupFaceIndices.push(current)
+        for (const positionIndex of currentTri.indices) {
+          groupPositionSet.add(positionIndex)
+        }
+        const neighbors = adjacency.get(current)
+        if (!neighbors) {
+          continue
+        }
+        for (const neighborFaceIndex of neighbors) {
+          if (visited.has(neighborFaceIndex)) {
+            continue
+          }
+          const neighbor = faceIndexToTriangle.get(neighborFaceIndex)
+          if (!neighbor) {
+            continue
+          }
+          if (seed.normal.dot(neighbor.normal) < FACE_NORMAL_DOT_THRESHOLD) {
+            continue
+          }
+          visited.add(neighborFaceIndex)
+          queue.push(neighborFaceIndex)
+        }
+      }
+
+      const expandedPositionSet = new Set<number>()
+      for (const positionIndex of groupPositionSet) {
+        const groupKey = this.indexToGroupKey.get(positionIndex)
+        this.appendWeldGroup(expandedPositionSet, groupKey, positionIndex)
+      }
+      const normalizedFaceIndices = groupFaceIndices.sort((a, b) => a - b)
+      const normalizedPositionIndices = [...expandedPositionSet].sort((a, b) => a - b)
+      this.faceGroups.push({
+        id: faceGroupId,
+        faceIndices: normalizedFaceIndices,
+        positionIndices: normalizedPositionIndices
+      })
+      for (const normalizedFaceIndex of normalizedFaceIndices) {
+        this.triToFaceGroup.set(normalizedFaceIndex, faceGroupId)
+      }
+      faceGroupId += 1
+    }
+  }
+
+  private appendWeldGroup(
+    target: Set<number>,
+    groupKey: string | undefined,
+    fallbackIndex: number
+  ): void {
+    if (!groupKey) {
+      target.add(fallbackIndex)
+      return
+    }
+    const group = this.weldGroups.get(groupKey)
+    if (!group) {
+      target.add(fallbackIndex)
+      return
+    }
+    for (const index of group) {
+      target.add(index)
+    }
+  }
+
+  private toEdgeKey(leftGroupKey: string, rightGroupKey: string): string {
+    return leftGroupKey < rightGroupKey
+      ? `${leftGroupKey}:${rightGroupKey}`
+      : `${rightGroupKey}:${leftGroupKey}`
+  }
+
+  private computeTriangleNormal(
+    position: THREE.BufferAttribute,
+    a: number,
+    b: number,
+    c: number
+  ): THREE.Vector3 {
+    const vA = new THREE.Vector3(position.getX(a), position.getY(a), position.getZ(a))
+    const vB = new THREE.Vector3(position.getX(b), position.getY(b), position.getZ(b))
+    const vC = new THREE.Vector3(position.getX(c), position.getY(c), position.getZ(c))
+    const edgeAB = vB.sub(vA)
+    const edgeAC = vC.sub(vA)
+    const normal = new THREE.Vector3().crossVectors(edgeAB, edgeAC)
+    const lengthSq = normal.lengthSq()
+    if (lengthSq <= Number.EPSILON) {
+      return new THREE.Vector3(0, 0, 0)
+    }
+    return normal.multiplyScalar(1 / Math.sqrt(lengthSq))
   }
 
   private getPositionAttribute(): THREE.BufferAttribute | null {
