@@ -14,7 +14,7 @@ import {
   type PointerPosition
 } from '@/engine/selection/Raycaster'
 import { useSceneStore } from '@/store/sceneStore'
-import type { SceneObjectMeta } from '@/store/types'
+import type { EditSubMode, SceneObjectMeta } from '@/store/types'
 import { useKeybinds } from '@/ui/hooks/useKeybinds'
 import * as THREE from 'three'
 
@@ -77,7 +77,14 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
     }
     state.enterEditMode(selectedId)
   }
-  const keybinds = useKeybinds(setTransformMode, onToggleEditorMode)
+  const onSetEditSubMode = (mode: EditSubMode): void => {
+    const state = useSceneStore.getState()
+    if (state.editorMode !== 'edit') {
+      return
+    }
+    state.setEditSubMode(mode)
+  }
+  const keybinds = useKeybinds(setTransformMode, onToggleEditorMode, onSetEditSubMode)
 
   const registerImportedGroup = (group: THREE.Group): void => {
     const sceneManager = sceneManagerRef.current

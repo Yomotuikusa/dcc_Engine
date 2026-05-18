@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 import { mapKeyToTransformMode } from '@/engine/controls/TransformController'
-import type { TransformMode } from '@/store/types'
+import type { EditSubMode, TransformMode } from '@/store/types'
 
 interface UseKeybindsResult {
   tabIndex: number
@@ -17,7 +17,8 @@ function isEditableTarget(target: EventTarget | null): boolean {
 
 export function useKeybinds(
   onSetMode: (mode: TransformMode) => void,
-  onToggleEditorMode: () => void = () => {}
+  onToggleEditorMode: () => void = () => {},
+  onSetEditSubMode?: (mode: EditSubMode) => void
 ): UseKeybindsResult {
   const onKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLElement>) => {
@@ -31,6 +32,18 @@ export function useKeybinds(
         onToggleEditorMode()
         return
       }
+      if (event.key === '1') {
+        onSetEditSubMode?.('vertex')
+        return
+      }
+      if (event.key === '2') {
+        onSetEditSubMode?.('edge')
+        return
+      }
+      if (event.key === '3') {
+        onSetEditSubMode?.('face')
+        return
+      }
 
       const mode = mapKeyToTransformMode(event.key)
       if (!mode) {
@@ -40,7 +53,7 @@ export function useKeybinds(
       event.preventDefault()
       onSetMode(mode)
     },
-    [onSetMode, onToggleEditorMode]
+    [onSetMode, onSetEditSubMode, onToggleEditorMode]
   )
 
   return {

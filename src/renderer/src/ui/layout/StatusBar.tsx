@@ -2,7 +2,10 @@ import { useSceneStore } from '@/store/sceneStore'
 
 export function StatusBar(): React.JSX.Element {
   const editorMode = useSceneStore((state) => state.editorMode)
-  const modeLabel = editorMode === 'edit' ? '編集モード' : 'オブジェクトモード'
+  const editSubMode = useSceneStore((state) => state.editSubMode)
+  const subModeLabel =
+    editSubMode === 'vertex' ? '頂点' : editSubMode === 'edge' ? 'エッジ' : '面'
+  const modeLabel = editorMode === 'edit' ? `編集モード（${subModeLabel}）` : 'オブジェクトモード'
 
   return (
     <footer
@@ -11,6 +14,7 @@ export function StatusBar(): React.JSX.Element {
       aria-label="ステータスバー"
     >
       <span data-testid="editor-mode-label">{modeLabel}</span>
+      <span data-testid="edit-submode-label">{subModeLabel}</span>
       <span>Perspective</span>
     </footer>
   )
