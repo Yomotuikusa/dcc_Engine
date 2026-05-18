@@ -371,6 +371,7 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
         }
         transformController.detach()
         transformController.setMode('translate')
+        meshEditController.setActiveSubMode(useSceneStore.getState().editSubMode)
         syncVertexTransformGizmo()
         return
       }
@@ -385,6 +386,27 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
       (state) => state.selectedVertices,
       (selectedVertices) => {
         meshEditController.setSelectedVertices(selectedVertices)
+        syncVertexTransformGizmo()
+      }
+    )
+    const unsubscribeEditSubMode = useSceneStore.subscribe(
+      (state) => state.editSubMode,
+      (editSubMode) => {
+        meshEditController.setActiveSubMode(editSubMode)
+        syncVertexTransformGizmo()
+      }
+    )
+    const unsubscribeSelectedEdges = useSceneStore.subscribe(
+      (state) => state.selectedEdges,
+      (selectedEdges) => {
+        meshEditController.setSelectedEdges(selectedEdges)
+        syncVertexTransformGizmo()
+      }
+    )
+    const unsubscribeSelectedFaces = useSceneStore.subscribe(
+      (state) => state.selectedFaces,
+      (selectedFaces) => {
+        meshEditController.setSelectedFaces(selectedFaces)
         syncVertexTransformGizmo()
       }
     )
@@ -421,6 +443,9 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
       unsubscribeSelected()
       unsubscribeEditorMode()
       unsubscribeSelectedVertices()
+      unsubscribeEditSubMode()
+      unsubscribeSelectedEdges()
+      unsubscribeSelectedFaces()
       unsubscribeTransform()
       // WebGL コンテキスト消失リスナーの解除 (viewport.dispose の前に実施)
       viewport.renderer.domElement.removeEventListener('webglcontextlost', handleContextLost)

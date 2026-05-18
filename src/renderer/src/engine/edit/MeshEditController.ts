@@ -4,6 +4,9 @@ const WELD_EPSILON = 1e-5
 const FACE_NORMAL_DOT_THRESHOLD = 0.999
 const DEFAULT_VERTEX_COLOR = new THREE.Color(0x4ea1ff)
 const SELECTED_VERTEX_COLOR = new THREE.Color(0xffa000)
+const EDGE_COLOR = 0x4ea1ff
+const SELECTED_EDGE_COLOR = 0xffa000
+const FACE_OVERLAY_COLOR = 0xffa000
 
 function quantize(value: number): number {
   return Math.round(value / WELD_EPSILON)
@@ -36,6 +39,16 @@ export class MeshEditController {
   private pointsObject: THREE.Points | null = null
   private pointsGeometry: THREE.BufferGeometry | null = null
   private pointsMaterial: THREE.PointsMaterial | null = null
+  private edgeLinesObject: THREE.LineSegments | null = null
+  private edgeLinesGeometry: THREE.BufferGeometry | null = null
+  private edgeLinesMaterial: THREE.LineBasicMaterial | null = null
+  private selectedEdgeLinesObject: THREE.LineSegments | null = null
+  private selectedEdgeLinesGeometry: THREE.BufferGeometry | null = null
+  private selectedEdgeLinesMaterial: THREE.LineBasicMaterial | null = null
+  private faceOverlayObject: THREE.Mesh | null = null
+  private faceOverlayGeometry: THREE.BufferGeometry | null = null
+  private faceOverlayMaterial: THREE.MeshBasicMaterial | null = null
+  private edgeIdToRepresentativePair = new Map<number, [number, number]>()
   private weldGroups = new Map<string, number[]>()
   private indexToGroupKey = new Map<number, string>()
   private edges: LogicalEdge[] = []
@@ -79,6 +92,9 @@ export class MeshEditController {
     points.name = 'Edit Vertices'
 
     mesh.add(points)
+    this.createEdgeVisualization(mesh, position)
+    this.createFaceOverlay(mesh, position)
+    this.setActiveSubMode('vertex')
 
     this.targetMesh = mesh
     this.pointsObject = points
@@ -96,9 +112,31 @@ export class MeshEditController {
     this.pointsGeometry?.deleteAttribute('position')
     this.pointsGeometry?.dispose()
     this.pointsMaterial?.dispose()
+    this.edgeLinesObject?.parent?.remove(this.edgeLinesObject)
+    this.selectedEdgeLinesObject?.parent?.remove(this.selectedEdgeLinesObject)
+    this.faceOverlayObject?.parent?.remove(this.faceOverlayObject)
+    this.edgeLinesGeometry?.deleteAttribute('position')
+    this.selectedEdgeLinesGeometry?.deleteAttribute('position')
+    this.faceOverlayGeometry?.deleteAttribute('position')
+    this.edgeLinesGeometry?.dispose()
+    this.selectedEdgeLinesGeometry?.dispose()
+    this.faceOverlayGeometry?.dispose()
+    this.edgeLinesMaterial?.dispose()
+    this.selectedEdgeLinesMaterial?.dispose()
+    this.faceOverlayMaterial?.dispose()
     this.targetMesh = null
     this.pointsGeometry = null
     this.pointsMaterial = null
+    this.edgeLinesObject = null
+    this.edgeLinesGeometry = null
+    this.edgeLinesMaterial = null
+    this.selectedEdgeLinesObject = null
+    this.selectedEdgeLinesGeometry = null
+    this.selectedEdgeLinesMaterial = null
+    this.faceOverlayObject = null
+    this.faceOverlayGeometry = null
+    this.faceOverlayMaterial = null
+    this.edgeIdToRepresentativePair.clear()
     this.weldGroups.clear()
     this.indexToGroupKey.clear()
     this.edges = []
@@ -175,6 +213,66 @@ export class MeshEditController {
     }
 
     colorAttribute.needsUpdate = true
+  }
+
+  setSelectedEdges(edgeIds: number[]): void {
+    if (!this.selectedEdgeLinesGeometry) {
+      return
+    }
+    const selectedPairs: number[] = []
+    for (const edgeId of edgeIds) {
+      const pair = this.edgeIdToRepresentativePair.get(edgeId)
+      if (!pair) {
+        continue
+      }
+      selectedPairs.push(pair[0], pair[1])
+    }
+    this.selectedEdgeLinesGeometry.setIndex(selectedPairs)
+    this.selectedEdgeLinesGeometry.computeBoundingSphere()
+  }
+
+  setSelectedFaces(faceIds: number[]): void {
+    const meshGeometry = this.targetMesh?.geometry
+    if (!(meshGeometry instanceof THREE.BufferGeometry) || !this.faceOverlayGeometry) {
+      return
+    }
+    const sourceIndex = meshGeometry.getIndex()
+    const selectedTriangles: number[] = []
+    for (const faceId of faceIds) {
+      const group = this.faceGroups.find((value) => value.id === faceId)
+      if (!group) {
+        continue
+      }
+      for (const faceIndex of group.faceIndices) {
+        const base = faceIndex * 3
+        if (sourceIndex) {
+          selectedTriangles.push(
+            sourceIndex.getX(base),
+            sourceIndex.getX(base + 1),
+            sourceIndex.getX(base + 2)
+          )
+        } else {
+          selectedTriangles.push(base, base + 1, base + 2)
+        }
+      }
+    }
+    this.faceOverlayGeometry.setIndex(selectedTriangles)
+    this.faceOverlayGeometry.computeBoundingSphere()
+  }
+
+  setActiveSubMode(mode: 'vertex' | 'edge' | 'face'): void {
+    if (this.pointsObject) {
+      this.pointsObject.visible = mode === 'vertex'
+    }
+    if (this.edgeLinesObject) {
+      this.edgeLinesObject.visible = mode === 'edge'
+    }
+    if (this.selectedEdgeLinesObject) {
+      this.selectedEdgeLinesObject.visible = mode === 'edge'
+    }
+    if (this.faceOverlayObject) {
+      this.faceOverlayObject.visible = mode === 'face'
+    }
   }
 
   getSelectionCentroidWorld(indices: number[]): THREE.Vector3 | null {
@@ -352,9 +450,13 @@ export class MeshEditController {
     )
     this.edges = sortedEntries.map(([edgeKey, positionSet], index) => {
       this.edgeKeyToId.set(edgeKey, index)
+      const representative = [...positionSet].sort((left, right) => left - right)
+      if (representative.length >= 2) {
+        this.edgeIdToRepresentativePair.set(index, [representative[0], representative[1]])
+      }
       return {
         id: index,
-        positionIndices: [...positionSet].sort((left, right) => left - right)
+        positionIndices: representative
       }
     })
   }
@@ -557,6 +659,18 @@ export class MeshEditController {
       this.pointsGeometry.computeBoundingBox()
       this.pointsGeometry.computeBoundingSphere()
     }
+    if (this.edgeLinesGeometry) {
+      this.edgeLinesGeometry.computeBoundingBox()
+      this.edgeLinesGeometry.computeBoundingSphere()
+    }
+    if (this.selectedEdgeLinesGeometry) {
+      this.selectedEdgeLinesGeometry.computeBoundingBox()
+      this.selectedEdgeLinesGeometry.computeBoundingSphere()
+    }
+    if (this.faceOverlayGeometry) {
+      this.faceOverlayGeometry.computeBoundingBox()
+      this.faceOverlayGeometry.computeBoundingSphere()
+    }
   }
 
   /**
@@ -577,5 +691,75 @@ export class MeshEditController {
       this.pointsGeometry.computeBoundingBox()
       this.pointsGeometry.computeBoundingSphere()
     }
+    if (this.edgeLinesGeometry) {
+      this.edgeLinesGeometry.computeBoundingBox()
+      this.edgeLinesGeometry.computeBoundingSphere()
+    }
+    if (this.selectedEdgeLinesGeometry) {
+      this.selectedEdgeLinesGeometry.computeBoundingBox()
+      this.selectedEdgeLinesGeometry.computeBoundingSphere()
+    }
+    if (this.faceOverlayGeometry) {
+      this.faceOverlayGeometry.computeBoundingBox()
+      this.faceOverlayGeometry.computeBoundingSphere()
+    }
+  }
+
+  private createEdgeVisualization(mesh: THREE.Mesh, position: THREE.BufferAttribute): void {
+    const edgeIndex: number[] = []
+    for (const edge of this.edges) {
+      const pair = this.edgeIdToRepresentativePair.get(edge.id)
+      if (!pair) {
+        continue
+      }
+      edgeIndex.push(pair[0], pair[1])
+    }
+    const geometry = new THREE.BufferGeometry()
+    geometry.setAttribute('position', position)
+    geometry.setIndex(edgeIndex)
+    const material = new THREE.LineBasicMaterial({ color: EDGE_COLOR })
+    const lines = new THREE.LineSegments(geometry, material)
+    lines.name = 'Edit Edges'
+    lines.visible = false
+    mesh.add(lines)
+
+    const selectedGeometry = new THREE.BufferGeometry()
+    selectedGeometry.setAttribute('position', position)
+    selectedGeometry.setIndex([])
+    const selectedMaterial = new THREE.LineBasicMaterial({
+      color: SELECTED_EDGE_COLOR,
+      depthTest: false
+    })
+    const selectedLines = new THREE.LineSegments(selectedGeometry, selectedMaterial)
+    selectedLines.name = 'Edit Selected Edges'
+    selectedLines.visible = false
+    mesh.add(selectedLines)
+
+    this.edgeLinesObject = lines
+    this.edgeLinesGeometry = geometry
+    this.edgeLinesMaterial = material
+    this.selectedEdgeLinesObject = selectedLines
+    this.selectedEdgeLinesGeometry = selectedGeometry
+    this.selectedEdgeLinesMaterial = selectedMaterial
+  }
+
+  private createFaceOverlay(mesh: THREE.Mesh, position: THREE.BufferAttribute): void {
+    const geometry = new THREE.BufferGeometry()
+    geometry.setAttribute('position', position)
+    geometry.setIndex([])
+    const material = new THREE.MeshBasicMaterial({
+      color: FACE_OVERLAY_COLOR,
+      transparent: true,
+      opacity: 0.35,
+      depthTest: false,
+      side: THREE.DoubleSide
+    })
+    const overlay = new THREE.Mesh(geometry, material)
+    overlay.name = 'Edit Faces'
+    overlay.visible = false
+    mesh.add(overlay)
+    this.faceOverlayObject = overlay
+    this.faceOverlayGeometry = geometry
+    this.faceOverlayMaterial = material
   }
 }
