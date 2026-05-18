@@ -67,6 +67,9 @@ export class MeshEditController {
       this.pointsObject.parent?.remove(this.pointsObject)
       this.pointsObject = null
     }
+    // 元メッシュと共有している position 属性を先に切り離す。
+    // これを行わずに dispose すると、共有先の GPU バッファまで解放される。
+    this.pointsGeometry?.deleteAttribute('position')
     this.pointsGeometry?.dispose()
     this.pointsMaterial?.dispose()
     this.targetMesh = null
