@@ -16,6 +16,7 @@ import {
 import { useSceneStore } from '@/store/sceneStore'
 import type { EditSubMode, SceneObjectMeta } from '@/store/types'
 import { useKeybinds } from '@/ui/hooks/useKeybinds'
+import { RubberBandOverlay, type RubberBandHandle } from '@/ui/panels/RubberBandOverlay'
 import * as THREE from 'three'
 
 const DEFAULT_CUBE_ID = 'default-cube'
@@ -44,12 +45,15 @@ function objectName(object: THREE.Object3D, fallback: string): string {
 export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const pointerDownRef = useRef<PointerPosition | null>(null)
+  const pointerCaptureIdRef = useRef<number | null>(null)
+  const isDraggingRef = useRef(false)
   const viewportRef = useRef<Viewport | null>(null)
   const sceneManagerRef = useRef<SceneManager | null>(null)
   const fbxImporterRef = useRef(new FbxImporter())
   const importSequenceRef = useRef(1)
   const raycasterRef = useRef(new SelectionRaycaster())
   const meshEditControllerRef = useRef<MeshEditController | null>(null)
+  const rubberBandRef = useRef<RubberBandHandle | null>(null)
   const vertexProxyRef = useRef<THREE.Object3D | null>(null)
   const vertexDragStartWorldRef = useRef<THREE.Vector3 | null>(null)
   const vertexDragBeforeRef = useRef<Float32Array | null>(null)
@@ -502,11 +506,51 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>): void => {
     if (event.button !== 0) return
     pointerDownRef.current = { x: event.clientX, y: event.clientY }
+    isDraggingRef.current = false
+    rubberBandRef.current?.hide()
     event.currentTarget.focus()
+  }
+
+  const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>): void => {
+    const pointerDown = pointerDownRef.current
+    if (!pointerDown) {
+      return
+    }
+    if (isClickWithinMoveThreshold(pointerDown, { x: event.clientX, y: event.clientY })) {
+      return
+    }
+    if (pointerCaptureIdRef.current === null) {
+      event.currentTarget.setPointerCapture(event.pointerId)
+      pointerCaptureIdRef.current = event.pointerId
+    }
+    isDraggingRef.current = true
+
+    const container = containerRef.current
+    if (!container) {
+      return
+    }
+    const rect = container.getBoundingClientRect()
+    const clampX = (value: number): number => Math.max(rect.left, Math.min(rect.right, value))
+    const clampY = (value: number): number => Math.max(rect.top, Math.min(rect.bottom, value))
+    const clampedStartX = clampX(pointerDown.x)
+    const clampedStartY = clampY(pointerDown.y)
+    const clampedCurrentX = clampX(event.clientX)
+    const clampedCurrentY = clampY(event.clientY)
+    const left = Math.min(clampedStartX, clampedCurrentX) - rect.left
+    const top = Math.min(clampedStartY, clampedCurrentY) - rect.top
+    const width = Math.abs(clampedCurrentX - clampedStartX)
+    const height = Math.abs(clampedCurrentY - clampedStartY)
+    rubberBandRef.current?.setRect({ left, top, width, height })
   }
 
   const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>): void => {
     if (event.button !== 0) return
+    if (pointerCaptureIdRef.current === event.pointerId) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+      pointerCaptureIdRef.current = null
+    }
+    rubberBandRef.current?.hide()
+    isDraggingRef.current = false
     const pointerDown = pointerDownRef.current
     pointerDownRef.current = null
     if (
@@ -624,6 +668,11 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
   }
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLElement>): void => {
+    if (event.key === 'Escape') {
+      pointerDownRef.current = null
+      isDraggingRef.current = false
+      rubberBandRef.current?.hide()
+    }
     if (event.key !== 'Tab') {
       const state = useSceneStore.getState()
       if (state.editorMode === 'edit') {
@@ -645,11 +694,18 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
       role="region"
       aria-label="ビューポート"
       onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
+      onPointerCancel={() => {
+        pointerDownRef.current = null
+        isDraggingRef.current = false
+        rubberBandRef.current?.hide()
+      }}
       tabIndex={keybinds.tabIndex}
       onKeyDown={handleKeyDown}
     >
       <div ref={containerRef} className="absolute inset-0" />
+      <RubberBandOverlay ref={rubberBandRef} />
       {importError ? (
         <p
           className="pointer-events-none absolute bottom-2 left-2 right-2 rounded bg-red-900/80 px-3 py-2 text-sm text-red-100"
