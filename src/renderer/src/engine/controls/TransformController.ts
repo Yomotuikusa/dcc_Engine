@@ -42,9 +42,9 @@ export class TransformController {
   private readonly controls: TransformControls
   private readonly controlsHelper: THREE.Object3D
   private readonly orbitControls: { enabled: boolean }
-  private readonly gizmoRaycaster = new THREE.Raycaster()
   private attachedObject: THREE.Object3D | null = null
   private dragStartTransform: SceneTransform | null = null
+  private dragging = false
 
   constructor(params: {
     scene: THREE.Scene
@@ -64,6 +64,7 @@ export class TransformController {
 
     this.controls.addEventListener('dragging-changed', (event) => {
       const typedEvent = event as DraggingChangedEvent
+      this.dragging = typedEvent.value
       this.orbitControls.enabled = handleDraggingChanged(typedEvent.value)
       if (typedEvent.value) {
         if (this.attachedObject) {
@@ -103,9 +104,8 @@ export class TransformController {
     this.controls.setMode(mode)
   }
 
-  isPointerOnGizmo(ndc: THREE.Vector2, camera: THREE.Camera): boolean {
-    this.gizmoRaycaster.setFromCamera(ndc, camera)
-    return this.gizmoRaycaster.intersectObject(this.controlsHelper, true).length > 0
+  isDragging(): boolean {
+    return this.dragging
   }
 
   attach(target: THREE.Object3D): void {
@@ -116,6 +116,7 @@ export class TransformController {
   detach(): void {
     this.attachedObject = null
     this.dragStartTransform = null
+    this.dragging = false
     this.controls.detach()
   }
 
