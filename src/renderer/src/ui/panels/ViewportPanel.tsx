@@ -10,6 +10,7 @@ import { useHistoryStore } from '@/store/historyStore'
 import {
   clientPointToNdc,
   isClickWithinMoveThreshold,
+  makeNdcRect,
   SelectionRaycaster,
   type PointerPosition
 } from '@/engine/selection/Raycaster'
@@ -514,6 +515,10 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
     if (!pointerDown) {
       return
     }
+    const state = useSceneStore.getState()
+    if (state.editorMode !== 'edit') {
+      return
+    }
     if (isClickWithinMoveThreshold(pointerDown, { x: event.clientX, y: event.clientY })) {
       return
     }
@@ -548,12 +553,10 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
     rubberBandRef.current?.hide()
     const pointerDown = pointerDownRef.current
     pointerDownRef.current = null
-    if (
-      !pointerDown ||
-      !isClickWithinMoveThreshold(pointerDown, { x: event.clientX, y: event.clientY })
-    ) {
+    if (!pointerDown) {
       return
     }
+    const isClick = isClickWithinMoveThreshold(pointerDown, { x: event.clientX, y: event.clientY })
 
     const viewport = viewportRef.current
     const sceneManager = sceneManagerRef.current
@@ -565,12 +568,75 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
     if (!container) {
       return
     }
+    const containerRect = container.getBoundingClientRect()
 
-    const ndc = clientPointToNdc(
-      { x: event.clientX, y: event.clientY },
-      container.getBoundingClientRect()
-    )
     const state = useSceneStore.getState()
+    if (!isClick && state.editorMode === 'edit') {
+      const meshEditController = meshEditControllerRef.current
+      if (!meshEditController) {
+        return
+      }
+      const rect = makeNdcRect(
+        clientPointToNdc(pointerDown, containerRect),
+        clientPointToNdc({ x: event.clientX, y: event.clientY }, containerRect)
+      )
+      if (state.editSubMode === 'vertex') {
+        const pickedIndices = meshEditController.resolveVerticesInRect(
+          rect,
+          viewport.camera,
+          raycasterRef.current
+        )
+        if (pickedIndices.length === 0) {
+          if (!event.shiftKey) {
+            useSceneStore.getState().setSelectedVertices([])
+          }
+          return
+        }
+        if (event.shiftKey) {
+          useSceneStore.getState().setSelectedVertices([...state.selectedVertices, ...pickedIndices])
+          return
+        }
+        useSceneStore.getState().setSelectedVertices(pickedIndices)
+        return
+      }
+      if (state.editSubMode === 'edge') {
+        const pickedEdgeIds = meshEditController.resolveEdgesInRect(
+          rect,
+          viewport.camera,
+          raycasterRef.current
+        )
+        if (pickedEdgeIds.length === 0) {
+          if (!event.shiftKey) {
+            useSceneStore.getState().setSelectedEdges([])
+          }
+          return
+        }
+        if (event.shiftKey) {
+          useSceneStore.getState().setSelectedEdges([...state.selectedEdges, ...pickedEdgeIds])
+          return
+        }
+        useSceneStore.getState().setSelectedEdges(pickedEdgeIds)
+        return
+      }
+      const pickedFaceIds = meshEditController.resolveFacesInRect(rect, viewport.camera, raycasterRef.current)
+      if (pickedFaceIds.length === 0) {
+        if (!event.shiftKey) {
+          useSceneStore.getState().setSelectedFaces([])
+        }
+        return
+      }
+      if (event.shiftKey) {
+        useSceneStore.getState().setSelectedFaces([...state.selectedFaces, ...pickedFaceIds])
+        return
+      }
+      useSceneStore.getState().setSelectedFaces(pickedFaceIds)
+      return
+    }
+    if (!isClick) {
+      return
+    }
+
+    const ndc = clientPointToNdc({ x: event.clientX, y: event.clientY }, containerRect)
     if (state.editorMode === 'edit') {
       const meshEditController = meshEditControllerRef.current
       if (!meshEditController) {
@@ -673,6 +739,14 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLElement>): void => {
     if (event.key === 'Escape') {
+      const section = event.currentTarget
+      if (
+        pointerCaptureIdRef.current !== null &&
+        section.hasPointerCapture(pointerCaptureIdRef.current)
+      ) {
+        section.releasePointerCapture(pointerCaptureIdRef.current)
+      }
+      pointerCaptureIdRef.current = null
       pointerDownRef.current = null
       rubberBandRef.current?.hide()
     }
