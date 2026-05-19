@@ -42,6 +42,7 @@ export class TransformController {
   private readonly controls: TransformControls
   private readonly controlsHelper: THREE.Object3D
   private readonly orbitControls: { enabled: boolean }
+  private readonly gizmoRaycaster = new THREE.Raycaster()
   private attachedObject: THREE.Object3D | null = null
   private dragStartTransform: SceneTransform | null = null
 
@@ -100,6 +101,11 @@ export class TransformController {
 
   setMode(mode: TransformMode): void {
     this.controls.setMode(mode)
+  }
+
+  isPointerOnGizmo(ndc: THREE.Vector2, camera: THREE.Camera): boolean {
+    this.gizmoRaycaster.setFromCamera(ndc, camera)
+    return this.gizmoRaycaster.intersectObject(this.controlsHelper, true).length > 0
   }
 
   attach(target: THREE.Object3D): void {

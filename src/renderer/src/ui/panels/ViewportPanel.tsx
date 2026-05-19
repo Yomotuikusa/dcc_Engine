@@ -53,6 +53,7 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
   const importSequenceRef = useRef(1)
   const raycasterRef = useRef(new SelectionRaycaster())
   const meshEditControllerRef = useRef<MeshEditController | null>(null)
+  const transformControllerRef = useRef<TransformController | null>(null)
   const rubberBandRef = useRef<RubberBandHandle | null>(null)
   const vertexProxyRef = useRef<THREE.Object3D | null>(null)
   const vertexDragStartWorldRef = useRef<THREE.Vector3 | null>(null)
@@ -276,6 +277,7 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
     viewportRef.current = viewport
     sceneManagerRef.current = sceneManager
     meshEditControllerRef.current = meshEditController
+    transformControllerRef.current = transformController
     vertexProxyRef.current = vertexProxy
     const cube = viewport.scene.getObjectByName('Cube')
     if (cube) {
@@ -450,6 +452,7 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
       viewportRef.current = null
       sceneManagerRef.current = null
       meshEditControllerRef.current = null
+      transformControllerRef.current = null
       vertexProxyRef.current = null
       vertexDragStartWorldRef.current = null
       vertexDragBeforeRef.current = null
@@ -505,6 +508,19 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>): void => {
     if (event.button !== 0) return
+    const state = useSceneStore.getState()
+    const viewport = viewportRef.current
+    const container = containerRef.current
+    const transformController = transformControllerRef.current
+    if (state.editorMode === 'edit' && viewport && container && transformController) {
+      const ndc = clientPointToNdc({ x: event.clientX, y: event.clientY }, container.getBoundingClientRect())
+      if (transformController.isPointerOnGizmo(ndc, viewport.camera)) {
+        pointerDownRef.current = null
+        rubberBandRef.current?.hide()
+        event.currentTarget.focus()
+        return
+      }
+    }
     pointerDownRef.current = { x: event.clientX, y: event.clientY }
     rubberBandRef.current?.hide()
     event.currentTarget.focus()
