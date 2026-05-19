@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { applyTransform, TransformController } from '@/engine/controls/TransformController'
 import { FbxImporter } from '@/engine/loaders/FbxImporter'
+import { createPrimitiveMesh, type PrimitiveKind } from '@/engine/primitives'
 import { SceneManager } from '@/engine/SceneManager'
 import { setActiveSceneManager } from '@/engine/sceneManagerRegistry'
 import { Viewport } from '@/engine/Viewport'
@@ -29,6 +30,7 @@ const EDIT_LINES_THRESHOLD = 0.08
 
 interface ViewportPanelProps {
   pendingFile?: File | null
+  pendingPrimitive?: { kind: PrimitiveKind; nonce: number } | null
 }
 
 function toSceneObjectType(object: THREE.Object3D): SceneObjectMeta['type'] {
@@ -43,7 +45,41 @@ function objectName(object: THREE.Object3D, fallback: string): string {
   return name.length > 0 ? name : fallback
 }
 
-export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React.JSX.Element {
+function primitiveDisplayName(kind: PrimitiveKind): string {
+  switch (kind) {
+    case 'cube':
+      return 'Cube'
+    case 'sphere':
+      return 'Sphere'
+    case 'cylinder':
+      return 'Cylinder'
+    case 'cone':
+      return 'Cone'
+    default:
+      return 'Cube'
+  }
+}
+
+function createUniquePrimitiveName(baseName: string): string {
+  const objects = Object.values(useSceneStore.getState().objects)
+  if (!objects.some((object) => object.name === baseName)) {
+    return baseName
+  }
+  let suffix = 1
+  while (suffix < 1000) {
+    const candidate = `${baseName}.${suffix.toString().padStart(3, '0')}`
+    if (!objects.some((object) => object.name === candidate)) {
+      return candidate
+    }
+    suffix += 1
+  }
+  return `${baseName}.${Date.now()}`
+}
+
+export function ViewportPanel({
+  pendingFile = null,
+  pendingPrimitive = null
+}: ViewportPanelProps): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const pointerDownRef = useRef<PointerPosition | null>(null)
   const pointerCaptureIdRef = useRef<number | null>(null)
@@ -51,6 +87,7 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
   const sceneManagerRef = useRef<SceneManager | null>(null)
   const fbxImporterRef = useRef(new FbxImporter())
   const importSequenceRef = useRef(1)
+  const primitiveSequenceRef = useRef(1)
   const raycasterRef = useRef(new SelectionRaycaster())
   const meshEditControllerRef = useRef<MeshEditController | null>(null)
   const transformControllerRef = useRef<TransformController | null>(null)
@@ -119,6 +156,26 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
       new AddObjectCommand(metas, group, sceneManager, `${FBX_ID_PREFIX}-${sequence}-1`)
     )
   }
+
+  const registerPrimitive = useCallback((kind: PrimitiveKind): void => {
+    const sceneManager = sceneManagerRef.current
+    if (!sceneManager) {
+      return
+    }
+    const mesh = createPrimitiveMesh(kind)
+    const baseName = primitiveDisplayName(kind)
+    const id = `prim-${primitiveSequenceRef.current++}`
+    const name = createUniquePrimitiveName(baseName)
+    mesh.name = name
+    const meta: SceneObjectMeta = {
+      id,
+      name,
+      type: 'mesh',
+      parentId: null,
+      visible: true
+    }
+    useHistoryStore.getState().execute(new AddObjectCommand([meta], mesh, sceneManager, id))
+  }, [])
 
   useEffect(() => {
     const container = containerRef.current
@@ -505,6 +562,16 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
       setImportError(message)
     })
   }, [pendingFile])
+
+  useEffect(() => {
+    if (!pendingPrimitive) {
+      return
+    }
+    if (!sceneManagerRef.current) {
+      return
+    }
+    registerPrimitive(pendingPrimitive.kind)
+  }, [pendingPrimitive, registerPrimitive])
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>): void => {
     if (event.button !== 0) return

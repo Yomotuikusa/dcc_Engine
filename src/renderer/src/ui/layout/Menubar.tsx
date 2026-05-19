@@ -1,17 +1,22 @@
 import { Box, Eye, FolderOpen, Pencil } from 'lucide-react'
+import type { PrimitiveKind } from '@/engine/primitives'
 import {
   Menubar as ShadMenubar,
   MenubarContent,
   MenubarItem,
   MenubarMenu,
+  MenubarSub,
+  MenubarSubContent,
+  MenubarSubTrigger,
   MenubarTrigger
 } from '@/components/ui/menubar'
 
 interface MenubarProps {
   onImportFbx: () => void
+  onAddPrimitive: (kind: PrimitiveKind) => void
 }
 
-export function Menubar({ onImportFbx }: MenubarProps): React.JSX.Element {
+export function Menubar({ onImportFbx, onAddPrimitive }: MenubarProps): React.JSX.Element {
   return (
     <header className="shrink-0 min-w-0" data-testid="menu-panel" aria-label="メニューバー">
       <ShadMenubar>
@@ -27,6 +32,26 @@ export function Menubar({ onImportFbx }: MenubarProps): React.JSX.Element {
         <MenubarMenu>
           <MenubarTrigger>Edit</MenubarTrigger>
           <MenubarContent>
+            <MenubarSub>
+              <MenubarSubTrigger>Object</MenubarSubTrigger>
+              <MenubarSubContent>
+                <MenubarItem data-testid="add-primitive-cube" onClick={() => onAddPrimitive('cube')}>
+                  Cube
+                </MenubarItem>
+                <MenubarItem data-testid="add-primitive-sphere" onClick={() => onAddPrimitive('sphere')}>
+                  Sphere
+                </MenubarItem>
+                <MenubarItem
+                  data-testid="add-primitive-cylinder"
+                  onClick={() => onAddPrimitive('cylinder')}
+                >
+                  Cylinder
+                </MenubarItem>
+                <MenubarItem data-testid="add-primitive-cone" onClick={() => onAddPrimitive('cone')}>
+                  Cone
+                </MenubarItem>
+              </MenubarSubContent>
+            </MenubarSub>
             <MenubarItem>
               <Pencil className="mr-2 h-4 w-4" />
               Preferences

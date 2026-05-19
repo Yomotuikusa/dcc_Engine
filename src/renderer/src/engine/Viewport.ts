@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import { createPrimitiveMesh } from '@/engine/primitives'
 
 export interface IRenderer {
   domElement: HTMLCanvasElement
@@ -208,17 +209,8 @@ export class Viewport {
   }
 
   private createDefaultSceneObjects(): void {
-    const cubeGeometry = new THREE.BoxGeometry(1, 1, 1)
-    const cubeMaterial = new THREE.MeshStandardMaterial({
-      color: 0x9ca3af,
-      roughness: 0.55,
-      metalness: 0.05
-    })
-    const cube = new THREE.Mesh(cubeGeometry, cubeMaterial)
+    const cube = createPrimitiveMesh('cube')
     cube.name = 'Cube'
-    cube.position.y = 0.5
-    cube.castShadow = true
-    cube.receiveShadow = true
     this.scene.add(cube)
 
     const grid = new THREE.GridHelper(16, 16, 0x5b6472, 0x2b3038)

@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
+import type { PrimitiveKind } from '@/engine/primitives'
 import { Menubar } from '@/ui/layout/Menubar'
 import { StatusBar } from '@/ui/layout/StatusBar'
 import { useGlobalUndoRedo } from '@/ui/hooks/useGlobalUndoRedo'
@@ -14,6 +15,10 @@ function ResizeHandle(): React.JSX.Element {
 export function DockLayout(): React.JSX.Element {
   useGlobalUndoRedo()
   const [pendingFile, setPendingFile] = useState<File | null>(null)
+  const [pendingPrimitive, setPendingPrimitive] = useState<{ kind: PrimitiveKind; nonce: number } | null>(
+    null
+  )
+  const primitiveNonceRef = useRef(0)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const handleImportFbx = (): void => {
@@ -26,9 +31,15 @@ export function DockLayout(): React.JSX.Element {
     event.target.value = ''
   }
 
+  const handleAddPrimitive = (kind: PrimitiveKind): void => {
+    const nextNonce = primitiveNonceRef.current + 1
+    primitiveNonceRef.current = nextNonce
+    setPendingPrimitive({ kind, nonce: nextNonce })
+  }
+
   return (
     <div className="flex h-screen min-h-0 min-w-0 flex-col bg-neutral-950 text-neutral-100">
-      <Menubar onImportFbx={handleImportFbx} />
+      <Menubar onImportFbx={handleImportFbx} onAddPrimitive={handleAddPrimitive} />
       <input
         ref={fileInputRef}
         type="file"
@@ -44,7 +55,7 @@ export function DockLayout(): React.JSX.Element {
           </Panel>
           <ResizeHandle />
           <Panel defaultSize={64} minSize={30}>
-            <ViewportPanel pendingFile={pendingFile} />
+            <ViewportPanel pendingFile={pendingFile} pendingPrimitive={pendingPrimitive} />
           </Panel>
           <ResizeHandle />
           <Panel defaultSize={18} minSize={12}>
