@@ -508,15 +508,18 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>): void => {
     if (event.button !== 0) return
+    if (transformControllerRef.current?.isPointerInteractingWithGizmo()) {
+      pointerDownRef.current = null
+      rubberBandRef.current?.hide()
+      event.currentTarget.focus()
+      return
+    }
     pointerDownRef.current = { x: event.clientX, y: event.clientY }
     rubberBandRef.current?.hide()
     event.currentTarget.focus()
   }
 
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>): void => {
-    if (transformControllerRef.current?.isDragging()) {
-      return
-    }
     const pointerDown = pointerDownRef.current
     if (!pointerDown) {
       return
@@ -552,11 +555,6 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
 
   const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>): void => {
     if (event.button !== 0) return
-    if (transformControllerRef.current?.isDragging()) {
-      pointerDownRef.current = null
-      rubberBandRef.current?.hide()
-      return
-    }
     if (pointerCaptureIdRef.current === event.pointerId) {
       event.currentTarget.releasePointerCapture(event.pointerId)
       pointerCaptureIdRef.current = null

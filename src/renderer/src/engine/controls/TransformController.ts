@@ -108,6 +108,10 @@ export class TransformController {
     return this.dragging
   }
 
+  isPointerInteractingWithGizmo(): boolean {
+    return this.dragging || this.controls.axis !== null
+  }
+
   attach(target: THREE.Object3D): void {
     this.attachedObject = target
     this.controls.attach(target)
