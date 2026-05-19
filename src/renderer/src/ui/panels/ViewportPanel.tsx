@@ -46,7 +46,6 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
   const containerRef = useRef<HTMLDivElement | null>(null)
   const pointerDownRef = useRef<PointerPosition | null>(null)
   const pointerCaptureIdRef = useRef<number | null>(null)
-  const isDraggingRef = useRef(false)
   const viewportRef = useRef<Viewport | null>(null)
   const sceneManagerRef = useRef<SceneManager | null>(null)
   const fbxImporterRef = useRef(new FbxImporter())
@@ -506,7 +505,6 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>): void => {
     if (event.button !== 0) return
     pointerDownRef.current = { x: event.clientX, y: event.clientY }
-    isDraggingRef.current = false
     rubberBandRef.current?.hide()
     event.currentTarget.focus()
   }
@@ -523,8 +521,6 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
       event.currentTarget.setPointerCapture(event.pointerId)
       pointerCaptureIdRef.current = event.pointerId
     }
-    isDraggingRef.current = true
-
     const container = containerRef.current
     if (!container) {
       return
@@ -550,7 +546,6 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
       pointerCaptureIdRef.current = null
     }
     rubberBandRef.current?.hide()
-    isDraggingRef.current = false
     const pointerDown = pointerDownRef.current
     pointerDownRef.current = null
     if (
@@ -667,10 +662,18 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
     useSceneStore.getState().setSelected(selectedId)
   }
 
+  const handlePointerCancel = (event: React.PointerEvent<HTMLDivElement>): void => {
+    if (pointerCaptureIdRef.current === event.pointerId) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+      pointerCaptureIdRef.current = null
+    }
+    pointerDownRef.current = null
+    rubberBandRef.current?.hide()
+  }
+
   const handleKeyDown = (event: React.KeyboardEvent<HTMLElement>): void => {
     if (event.key === 'Escape') {
       pointerDownRef.current = null
-      isDraggingRef.current = false
       rubberBandRef.current?.hide()
     }
     if (event.key !== 'Tab') {
@@ -696,11 +699,7 @@ export function ViewportPanel({ pendingFile = null }: ViewportPanelProps): React
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      onPointerCancel={() => {
-        pointerDownRef.current = null
-        isDraggingRef.current = false
-        rubberBandRef.current?.hide()
-      }}
+      onPointerCancel={handlePointerCancel}
       tabIndex={keybinds.tabIndex}
       onKeyDown={handleKeyDown}
     >
