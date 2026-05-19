@@ -1,7 +1,18 @@
 import * as THREE from 'three'
+import {
+  type NdcRect,
+  SelectionRaycaster,
+  isNdcPointInRect,
+  ndcSegmentIntersectsRect,
+  worldToScreenNdc
+} from '../selection/Raycaster'
 
 const WELD_EPSILON = 1e-5
 const FACE_NORMAL_DOT_THRESHOLD = 0.999
+// 遮蔽判定で自己遮蔽の誤検出を抑えるため、候補距離に対する相対 epsilon を使う。
+const OCCLUSION_DEPTH_EPS_RATIO = 1e-3
+// 近距離でも判定が不安定にならないよう絶対下限を設ける。
+const OCCLUSION_DEPTH_EPS_MIN = 1e-4
 const DEFAULT_VERTEX_COLOR = new THREE.Color(0x4ea1ff)
 const SELECTED_VERTEX_COLOR = new THREE.Color(0xffa000)
 const EDGE_COLOR = 0x4ea1ff
@@ -209,6 +220,130 @@ export class MeshEditController {
       return null
     }
     return this.triToFaceGroup.get(faceIndex) ?? null
+  }
+
+  resolveVerticesInRect(rect: NdcRect, camera: THREE.Camera, raycaster: SelectionRaycaster): number[] {
+    const position = this.getPositionAttribute()
+    const mesh = this.targetMesh
+    if (!position || !mesh) {
+      return []
+    }
+
+    mesh.updateMatrixWorld(true)
+    const local = new THREE.Vector3()
+    const world = new THREE.Vector3()
+    const selected = new Set<number>()
+
+    for (const group of this.weldGroups.values()) {
+      if (group.length === 0) {
+        continue
+      }
+      const representative = group[0]
+      local.set(
+        position.getX(representative),
+        position.getY(representative),
+        position.getZ(representative)
+      )
+      world.copy(local).applyMatrix4(mesh.matrixWorld)
+      const ndc = worldToScreenNdc(world, camera)
+      if (!ndc || !isNdcPointInRect(ndc.x, ndc.y, rect)) {
+        continue
+      }
+      if (this.isOccluded(world, camera, raycaster)) {
+        continue
+      }
+      for (const index of group) {
+        selected.add(index)
+      }
+    }
+
+    return [...selected].sort((left, right) => left - right)
+  }
+
+  resolveEdgesInRect(rect: NdcRect, camera: THREE.Camera, raycaster: SelectionRaycaster): number[] {
+    const position = this.getPositionAttribute()
+    const mesh = this.targetMesh
+    if (!position || !mesh) {
+      return []
+    }
+
+    mesh.updateMatrixWorld(true)
+    const localA = new THREE.Vector3()
+    const localB = new THREE.Vector3()
+    const worldA = new THREE.Vector3()
+    const worldB = new THREE.Vector3()
+    const selected = new Set<number>()
+
+    for (const [edgeId, pair] of this.edgeIdToRepresentativePair.entries()) {
+      const [indexA, indexB] = pair
+      localA.set(position.getX(indexA), position.getY(indexA), position.getZ(indexA))
+      localB.set(position.getX(indexB), position.getY(indexB), position.getZ(indexB))
+      worldA.copy(localA).applyMatrix4(mesh.matrixWorld)
+      worldB.copy(localB).applyMatrix4(mesh.matrixWorld)
+
+      const ndcA = worldToScreenNdc(worldA, camera)
+      const ndcB = worldToScreenNdc(worldB, camera)
+      if (!ndcA && !ndcB) {
+        continue
+      }
+
+      const pointInRect =
+        (ndcA ? isNdcPointInRect(ndcA.x, ndcA.y, rect) : false) ||
+        (ndcB ? isNdcPointInRect(ndcB.x, ndcB.y, rect) : false)
+      const segmentIntersects =
+        ndcA && ndcB ? ndcSegmentIntersectsRect(ndcA.x, ndcA.y, ndcB.x, ndcB.y, rect) : false
+      if (!pointInRect && !segmentIntersects) {
+        continue
+      }
+
+      const isAVisible = ndcA ? !this.isOccluded(worldA, camera, raycaster) : false
+      const isBVisible = ndcB ? !this.isOccluded(worldB, camera, raycaster) : false
+      if (!isAVisible && !isBVisible) {
+        continue
+      }
+      selected.add(edgeId)
+    }
+
+    return [...selected].sort((left, right) => left - right)
+  }
+
+  resolveFacesInRect(rect: NdcRect, camera: THREE.Camera, raycaster: SelectionRaycaster): number[] {
+    const position = this.getPositionAttribute()
+    const mesh = this.targetMesh
+    if (!position || !mesh) {
+      return []
+    }
+
+    mesh.updateMatrixWorld(true)
+    const local = new THREE.Vector3()
+    const world = new THREE.Vector3()
+    const selected = new Set<number>()
+
+    for (const group of this.faceGroups) {
+      let isHit = false
+      for (const positionIndex of group.positionIndices) {
+        local.set(
+          position.getX(positionIndex),
+          position.getY(positionIndex),
+          position.getZ(positionIndex)
+        )
+        world.copy(local).applyMatrix4(mesh.matrixWorld)
+        const ndc = worldToScreenNdc(world, camera)
+        if (!ndc || !isNdcPointInRect(ndc.x, ndc.y, rect)) {
+          continue
+        }
+        if (this.isOccluded(world, camera, raycaster)) {
+          continue
+        }
+        isHit = true
+        break
+      }
+      if (isHit) {
+        selected.add(group.id)
+      }
+    }
+
+    return [...selected].sort((left, right) => left - right)
   }
 
   setSelectedVertices(indices: number[]): void {
@@ -773,6 +908,51 @@ export class MeshEditController {
       this.faceOverlayGeometry.computeBoundingBox()
       this.faceOverlayGeometry.computeBoundingSphere()
     }
+  }
+
+  private isOccluded(
+    worldPoint: THREE.Vector3,
+    camera: THREE.Camera,
+    raycaster: SelectionRaycaster
+  ): boolean {
+    const mesh = this.targetMesh
+    if (!mesh) {
+      return false
+    }
+
+    const ndc = worldToScreenNdc(worldPoint, camera)
+    if (!ndc) {
+      return true
+    }
+    const intersections = raycaster.intersect(
+      new THREE.Vector2(ndc.x, ndc.y),
+      camera,
+      [mesh],
+      false
+    )
+    const nearest = intersections[0]
+    if (!nearest) {
+      return false
+    }
+
+    const cameraWorld = new THREE.Vector3()
+    camera.getWorldPosition(cameraWorld)
+    const candidateDistance = cameraWorld.distanceTo(worldPoint)
+    const epsilon = Math.max(OCCLUSION_DEPTH_EPS_MIN, candidateDistance * OCCLUSION_DEPTH_EPS_RATIO)
+    if (nearest.distance + epsilon < candidateDistance) {
+      return true
+    }
+
+    if (nearest.face && Math.abs(nearest.distance - candidateDistance) <= epsilon * 2) {
+      const normalMatrix = new THREE.Matrix3().getNormalMatrix(mesh.matrixWorld)
+      const worldNormal = nearest.face.normal.clone().applyMatrix3(normalMatrix).normalize()
+      const toCamera = cameraWorld.clone().sub(worldPoint).normalize()
+      if (worldNormal.dot(toCamera) <= 0) {
+        return true
+      }
+    }
+
+    return false
   }
 
   private createEdgeVisualization(mesh: THREE.Mesh, position: THREE.BufferAttribute): void {
