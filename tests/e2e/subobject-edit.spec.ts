@@ -1,5 +1,16 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Locator } from '@playwright/test'
 import { openWebApp } from '../helpers/webAppHelper'
+
+async function dragInViewport(
+  viewport: Locator,
+  from: { x: number; y: number },
+  to: { x: number; y: number }
+): Promise<void> {
+  await viewport.hover({ position: from })
+  await viewport.page().mouse.down()
+  await viewport.hover({ position: to })
+  await viewport.page().mouse.up()
+}
 
 test('編集モード中に 1/2/3 キーで頂点/エッジ/面サブモードを切り替えできる', async ({ page }) => {
   await openWebApp(page)
@@ -45,4 +56,46 @@ test('オブジェクトモード中の 1/2/3 キーはサブモード切り替�
 
   await expect(editorModeLabel).toContainText('オブジェクトモード')
   await expect(editSubmodeLabel).toHaveText('頂点')
+})
+
+test('編集モードでは左ドラッグでラバーバンド矩形が表示され、ドラッグ終了で消える', async ({ page }) => {
+  await openWebApp(page)
+
+  await page.getByTestId('outliner-item-default-cube').click()
+  const viewport = page.getByTestId('viewport-panel')
+  await viewport.click()
+  await page.keyboard.press('Tab')
+
+  await viewport.hover({ position: { x: 80, y: 80 } })
+  await page.mouse.down()
+  await viewport.hover({ position: { x: 180, y: 160 } })
+  await expect(page.getByTestId('rubber-band-overlay')).toBeVisible()
+  await page.mouse.up()
+  await expect(page.getByTestId('rubber-band-overlay')).toHaveCount(0)
+})
+
+test('オブジェクトモードでは左ドラッグしてもラバーバンド矩形は表示されない', async ({ page }) => {
+  await openWebApp(page)
+
+  const viewport = page.getByTestId('viewport-panel')
+  await dragInViewport(viewport, { x: 80, y: 80 }, { x: 180, y: 160 })
+
+  await expect(page.getByTestId('rubber-band-overlay')).toHaveCount(0)
+})
+
+test('ドラッグ中に Escape を押すとラバーバンド矩形を破棄する', async ({ page }) => {
+  await openWebApp(page)
+
+  await page.getByTestId('outliner-item-default-cube').click()
+  const viewport = page.getByTestId('viewport-panel')
+  await viewport.click()
+  await page.keyboard.press('Tab')
+
+  await viewport.hover({ position: { x: 80, y: 80 } })
+  await page.mouse.down()
+  await viewport.hover({ position: { x: 180, y: 160 } })
+  await expect(page.getByTestId('rubber-band-overlay')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await page.mouse.up()
+  await expect(page.getByTestId('rubber-band-overlay')).toHaveCount(0)
 })
